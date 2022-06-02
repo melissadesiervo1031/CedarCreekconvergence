@@ -32,6 +32,39 @@ library(BiodiversityR)
 
 
 
+```{r aictable function}
+
+aictable<-function(X,m){
+  #
+  #  This function will create a full model selection table based on AICc.
+  #  
+  #  Inputs:
+  #
+  #  X is the AIC table produced by R by using AIC(model1,model2, ...)
+  #  m is the sample size
+  #
+  #
+  rnames<-row.names(X)
+  AICc<-X$AIC+2*X$df*(X$df+1)/(m-X$df-1)     #small-sample correction
+  logL<-X$df-X$AIC/2                         #Log-likelihood
+  tab<-data.frame(X[,1],logL,AICc)           #Remove AIC column; add logL and AICc
+  colnames(tab)[1]<-c("Params")              #Rename "df" column   
+  row.names(tab)<-rnames
+  tab<-tab[order(tab$AICc),]                 #Sort by ascending AICc value
+  deltaAICc<-tab$AICc-min(tab$AICc)          #Delta AICc
+  weight<-exp(-deltaAICc/2)/sum(exp(-deltaAICc/2))  #Weights
+  cumwt<-weight                              #Column for cumulative weight
+  for(i in 2:dim(X)[1]){                  
+    cumwt[i]<-cumwt[i-1]+cumwt[i]              #Accumulate weight from the top
+  }
+  tab<-data.frame(tab,deltaAICc,weight,cumwt)
+  tab<-round(tab,4)
+  tab
+}
+
+```
+
+
 ```{r upload and clean datasets}
 
 
@@ -402,42 +435,9 @@ exp12subset_1<-subset(exp12subset,ntrt==9|ntrt==1|ntrt==2|ntrt==4|ntrt==6)
 
 
 
-```{r aictable function}
-
-aictable<-function(X,m){
-  #
-  #  This function will create a full model selection table based on AICc.
-  #  
-  #  Inputs:
-  #
-  #  X is the AIC table produced by R by using AIC(model1,model2, ...)
-  #  m is the sample size
-  #
-  #
-  rnames<-row.names(X)
-  AICc<-X$AIC+2*X$df*(X$df+1)/(m-X$df-1)     #small-sample correction
-  logL<-X$df-X$AIC/2                         #Log-likelihood
-  tab<-data.frame(X[,1],logL,AICc)           #Remove AIC column; add logL and AICc
-  colnames(tab)[1]<-c("Params")              #Rename "df" column   
-  row.names(tab)<-rnames
-  tab<-tab[order(tab$AICc),]                 #Sort by ascending AICc value
-  deltaAICc<-tab$AICc-min(tab$AICc)          #Delta AICc
-  weight<-exp(-deltaAICc/2)/sum(exp(-deltaAICc/2))  #Weights
-  cumwt<-weight                              #Column for cumulative weight
-  for(i in 2:dim(X)[1]){                  
-    cumwt[i]<-cumwt[i-1]+cumwt[i]              #Accumulate weight from the top
-  }
-  tab<-data.frame(tab,deltaAICc,weight,cumwt)
-  tab<-round(tab,4)
-  tab
-}
-
-```
-
-
 ###PERMANOVA AND PCOA###
 
-```{r - Conduct a PCoA using all the veg data across years}
+```{r - Conduct a PCoA using all the veg data across years (log)}
 
 
 ##make nutrient and years factors#
@@ -449,15 +449,25 @@ exp12subset_1$year<-as.factor(exp12subset_1$year)
 ##arrange the dataframe so that that columns and rows are in right order##
 exp12subset_1_sorted<-exp12subset_1%>%arrange(year)%>%arrange(plot)%>%arrange(field)%>%arrange(exp)
 
-##just the veg data##
-
-veg<-exp12subset_1_sorted%>% dplyr::select(`mass.above.ACHILLEA MILLEFOLIUM(LANULOSA)`:`mass.above.VIOLA SP.`)
 
 ##just the plot data##
 plot<-exp12subset_1_sorted%>% dplyr::select('field':'ntrt2')
 
+##just the veg data##
+
+veg<-exp12subset_1_sorted%>% dplyr::select(`mass.above.ACHILLEA MILLEFOLIUM(LANULOSA)`:`mass.above.VIOLA SP.`)
+
+
+
+###log transformation####
+
+vegmatrix<-as.matrix(veg)
+
+logveg<-log(1+vegmatrix)
+
+
 ## Bray curtis dissimiliarty matrix##
-distE1andE2<-vegdist(veg, method="bray")
+distE1andE2<-vegdist(logveg, method="bray")
 BCdistall<-as.matrix(distE1andE2)  ##into a matrix#
 BCdistalldf<-as.data.frame(BCdistall)  #into a dataframe#
 
@@ -481,74 +491,31 @@ PCOAaxesboth <- PCOA_allfieldE12$vectors[,c(1,2)]
 
 PCOAandplotsboth<-cbind(plot,PCOAaxesboth )
 
-
-```
-
-
-```{r - Conduct a PCoA with log-transformed data using all the veg data across years}
-
-
-##make nutrient and years factors#
-
-exp12subset_1$ntrt<-as.factor(exp12subset_1$ntrt)
-exp12subset_1$year<-as.factor(exp12subset_1$year)
-
-
-##arrange the dataframe so that that columns and rows are in right order##
-exp12subset_1_sorted<-exp12subset_1%>%arrange(year)%>%arrange(plot)%>%arrange(field)%>%arrange(exp)
-
-##just the veg data##
-
-veg<-exp12subset_1_sorted%>% dplyr::select(`mass.above.ACHILLEA MILLEFOLIUM(LANULOSA)`:`mass.above.VIOLA SP.`)
-
-
-###log transformation####
-
-vegmatrix<-as.matrix(veg)
-
-logveg<-log(1+vegmatrix)
-
-
-##just the plot data##
-plot<-exp12subset_1_sorted%>% dplyr::select('field':'ntrt2')
-
-## Bray curtis dissimiliarty matrix##
-logdistE1andE2<-vegdist(logveg, method="bray")
-logBCdistall<-as.matrix(logdistE1andE2)  ##into a matrix#
-logBCdistalldf<-as.data.frame(logBCdistall)  #into a dataframe#
-
-logBCdistalldf2<-cbind(plot,logBCdistalldf) #merge plot data w/ dissim matrix##
-
-##logBCdistalldf2 has the plot info and the BC dissimilarity matrix for the entire experiment (E001 and E002, all three fields combined, with a subsetted selection of the ntrt treatments)
-
-###PcOA for both E011 and E002 together####
-
-logPCOA_allfieldE12 <- pcoa(logdistE1andE2)  ## takes a while##
-
-#PCOA_allfieldE12 <- cmdscale(distE1andE2)  ## Another way of doing the pcoa that gives same results#
-
-
-## extracting the axis scores for each exp##
-
-logPCOAaxesboth <- logPCOA_allfieldE12$vectors[,c(1,2)]
-
-
-##merge the axis scores with the plot data ###
-
-logPCOAandplotsboth<-cbind(plot,logPCOAaxesboth )
-
+##PCOAandplotsboth has the plot info and the PCOA scores for the entire experiment (E001 and E002, all three fields combined, with a subsetted selection of the ntrt treatments)
 
 ```
 
 
 
-```{r - Conduct permanova: nutrient, disturbance, field effect}
+
+```{r - Conduct permanova: nutrient, disturbance, field effect (log data)}
 
 
 
 ####for this analysis, getting rid of the years where not every field was sampeled##
 
 exp12subset_2<-exp12subset_1%>%filter(year!=1995)%>%filter(year!=1998)%>%filter(year!=2001)%>%filter(year!=2003)
+
+
+
+###log transform the biomass data###
+
+justveg<-as.matrix(exp12subset_2[,12:222])
+
+logveg<-log(1+justveg)
+
+exp12subset_2<-cbind(exp12subset_2[,1:11], logveg)
+
 
 #drop the levels not sampeled
 
@@ -588,60 +555,7 @@ permmaster3<-subset(permmaster2,sourcevariation=="Disturbance"|sourcevariation==
 
 
 
-```{r - Conduct permanova log transformed: nutrient, disturbance, field effect}
-
-
-
-####for this analysis, getting rid of the years where not every field was sampeled##
-
-exp12subset_2<-exp12subset_1%>%filter(year!=1995)%>%filter(year!=1998)%>%filter(year!=2001)%>%filter(year!=2003)
-
-###log transform the biomass data###
-
-justveg<-as.matrix(exp12subset_2[,12:222])
-
-logveg<-log(1+justveg)
-
-logexp12subset_2<-cbind(exp12subset_2[,1:11], logveg)
-
-#drop the levels not sampeled
-
-levels(logexp12subset_2$year)
-logexp12subset_2$year <- as.factor(as.character(logexp12subset_2$year))
-
-### Extract one year to get the apply function to work#####
-
-logda.wide_1990<-subset(logexp12subset_2, year=="1990", row.names=NULL)
-
-##Do a PERMANOVA looping over years, looking at effect of exp (disturbed or not), ntrt treatment# and field (A, B, C)###
-
-###
-logpermallfields<-lapply(X = split.data.frame(x = logexp12subset_2, f=logexp12subset_2$year),function(t){
-  z<-adonis2(vegdist(t[,11:175])~exp+ntrt+field, data= logda.wide_1990)
-  return(data.frame(z))
-  }
-  )
-
-
-
-##dataframe of results##
-logpermmaster<-plyr::ldply(logpermallfields, data.frame)
-names<-c("Disturbance", "Fertilization", "Field", "residual", "total")
-
-sourcevariation<-rep(names,length(unique(logpermmaster$.id)))
-
-logpermmaster2<-cbind(sourcevariation,logpermmaster)
-  
-logpermmaster3<-subset(logpermmaster2,sourcevariation=="Disturbance"|sourcevariation=="Fertilization"|sourcevariation=="Field") 
-
-##This dataframe (permmmaster3) has the results from a permanova for each independent variable (disturbance, field, fertilization) for every year in the dataset w/ everything sampeled. The R2 column is what is plotted in Fig 1 ###
-
-
-
-```
-
-
-```{r - recreate FIG 1, R2 over time dist, nut, field}
+```{r - recreate FIG 1, R2 over time dist, nut, field (log data)}
 
 
 permmaster4<- permmaster3 %>% mutate (year=as.numeric(.id))  %>% mutate (year2=year-1981)
@@ -678,47 +592,9 @@ variancetimeall<-permmaster5 %>% ggplot(aes(x=as.numeric(year2), y=R2, group=sou
 
 ```
 
-```{r - recreate log FIG 1, R2 over time dist, nut, field}
 
 
-logpermmaster4<- logpermmaster3 %>% mutate (year=as.numeric(.id))  %>% mutate (year2=year-1981)
-
-logpermmaster4$sourcevariation<- factor(permmaster4$sourcevariation, levels = c("Disturbance", "Fertilization", "Field"))
-
-my_plotlabels = paste0('(', letters, ') ')
-
-abclabels = paste0(my_plotlabels[1:length(levels(permmaster4$sourcevariation))]) 
-
-logpermmaster5<-cbind(logpermmaster4, abclabels)
-
-
-##make the plot##
-
-mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title=element_text(size=12))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))+ theme(panel.grid.major = element_line(colour = "gray 85"))+ theme(panel.grid.minor = element_line(colour = "gray 95"))
-
-
-
-
-logvariancetimeall<-logpermmaster5 %>% ggplot(aes(x=as.numeric(year2), y=R2, group=sourcevariation)) +
-    geom_point() +
-    facet_wrap(~sourcevariation, strip.position = c("top"))+
-    geom_smooth(method="loess", colour="black", size=0.5, fill = "gray1") +
-    geom_text(aes(x = 2.0, y = 0.49, label = abclabels, group =     abclabels),size = 4,check_overlap = T)+
-    ylab(expression('Explained variation'))+
-    xlab("Time since experiment (years)")+
-    mytheme+
-    theme(strip.text = element_text(face="bold", size=12))+
-     theme(strip.background = element_blank())
-
-   
-###
-
-```
-
-
-
-
-```{r - recreate FIG 2, PCOA ordination by year}
+```{r - recreate FIG 2, PCOA ordination by year (log data)}
 
 
 
@@ -821,7 +697,9 @@ PcoAfieldAveragedE001E002<-ggplot(PCOAandplotsavg3[order(PCOAandplotsavg3$year),
 
 
 
-```{r - recreate FIG 4 cd, PCoA by decade}
+
+
+```{r - recreate FIG 4 cd, PCoA by decade (log data)}
 
 
 PCOAandplotsavg<-PCOAandplotsboth %>% group_by(exp,year,disk,ntrt) %>% dplyr::summarise(meanAxis1=mean(Axis.1, na.rm=TRUE),sdAxis1=sd(Axis.1, na.rm=TRUE),seAxis1=sd(Axis.1, na.rm=TRUE)/sqrt(n()),meanAxis2=mean(Axis.2, na.rm=TRUE),sdAxis2=sd(Axis.2, na.rm=TRUE),seAxis2=sd(Axis.2, na.rm=TRUE)/sqrt(n()), n=n())
@@ -855,9 +733,14 @@ PCOAandplots1982<-subset(PCOAandplotsavg2, year==1982)
 
 PCOAandplots198219922004<-subset(PCOAandplotsavg2, year==1982|year==1992|year==2004)
 
-PCOAandplots198219922004<-PCOAandplots198219922004 %>% mutate(abclabel=exp)%>%  mutate(expntrt= paste(exp, ntrt, sep = '_'))
+PCOAandplots198219922004<-PCOAandplots198219922004 %>% mutate(abclabel=exp)%>% mutate(ntrt2=ntrt) %>%  mutate(expntrt= paste(exp, ntrt, sep = '_'))
 
 levels(PCOAandplots198219922004$abclabel) <- c( "(a) ", "(b) ")
+
+
+PCOAandplots198219922004$ntrt2  <- mapvalues(PCOAandplots198219922004$ntrt2, from=c("9", "1", "2", "3", "4","5","6"),
+                               to=c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro"))
+PCOAandplots198219922004$ntrt2 <- factor(PCOAandplots198219922004$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro"))
 
 
 #first arrow and second##
@@ -866,6 +749,14 @@ PcoAplayingfirst <- PCOAandplotsavg2 %>% filter(year %in% c(1982,1992, 2004))
 PcoAplayingfirst2<-PcoAplayingfirst %>% mutate(abclabel=exp)
 levels(PcoAplayingfirst2$abclabel) <- c( "(c) ", "(d) ")
 
+#make sure its in the right order##
+PcoAplayingfirst2<-PcoAplayingfirst2 %>% arrange(year)%>% arrange(exp)%>% arrange(ntrt)%>% mutate(ntrt2=ntrt) %>%  mutate(expntrt= paste(exp, ntrt, sep = '_'))
+
+
+
+PcoAplayingfirst2$ntrt2  <- mapvalues(PcoAplayingfirst2$ntrt2, from=c("9", "1", "2", "3", "4","5","6"),
+                               to=c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro"))
+PcoAplayingfirst$ntrt2 <- factor(PcoAplayingfirst$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro"))
 
 wide_PcoAplaying1 <- pivot_wider(PcoAplayingfirst2, names_from = year, values_from = year)
 
@@ -876,9 +767,6 @@ wide_PcoAplaying1$`2004`<-as.numeric(as.character(wide_PcoAplaying1$`2004`))
 
 PCOAandplotslabels<-subset(PcoAplayingfirst2, ntrt==4)
 PCOAandplotslabels<-PCOAandplotslabels%>%  mutate(expntrt= paste(exp, ntrt, sep = '_'))%>%  mutate(yearlabel= year)
-
-#make sure its in the right order##
-PcoAplayingfirst2<-PcoAplayingfirst2 %>% arrange(year)%>% arrange(exp)%>% arrange(ntrt)%>%  mutate(expntrt= paste(exp, ntrt, sep = '_'))
 
 
 ######
@@ -914,14 +802,14 @@ PcOAdecade<-ggplot(data=PcoAplayingfirst2, aes(x=meanAxis1  , y=meanAxis2 , colo
     ylab("PCoA 2")+
     xlab("PCoA 1")+
     facet_grid(~disk) + 
-    xlim(-0.4,0.5)+
-    ylim(-0.24,0.27)+
+    xlim(-0.3,0.4)+
+    ylim(-0.4,0.17)+
     scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
     mytheme+
     theme(legend.position="none")+
     scale_shape_manual(values = c(21, 22, 24))+
       theme(strip.background = element_blank())+
-      geom_text(aes(x = -0.37, y = 0.27, label = abclabel, group =     abclabel),size = 4, color= "black", check_overlap = T)+theme(strip.text = element_blank())
+      geom_text(aes(x = -0.27, y = 0.15, label = abclabel, group =     abclabel),size = 4, color= "black", check_overlap = T)+theme(strip.text = element_blank())
 
 
 ```
@@ -929,7 +817,7 @@ PcOAdecade<-ggplot(data=PcoAplayingfirst2, aes(x=meanAxis1  , y=meanAxis2 , colo
 
 
 ###DISPERSION####
-```{r - Calculate the distance TO centroid within ntrt treatments }
+```{r - Calculate the distance TO centroid within ntrt treatments (log data)}
 
 
 ###need to have the most recent verion of vegan from github for this to work##
@@ -939,7 +827,7 @@ PcOAdecade<-ggplot(data=PcoAplayingfirst2, aes(x=meanAxis1  , y=meanAxis2 , colo
 #######################
 
 head(exp12subset_2)
-dim(exp12subset_2)  ##data frame with everything, minus the years where not everything was sampeled##
+dim(exp12subset_2)  ##data frame with everything, minus the years where not everything was sampeled## biomass data are log transformed####
 
 
 ##add on a column for exp ntrt year  without field###
@@ -1154,7 +1042,7 @@ summary(E002distntrt6fit)
 ```
 
 
-```{r - recreate FIG 3ab, Distance to the centroid }
+```{r - recreate FIG 3ab, Distance to the centroid (log data)}
 
 
 head(groupdistancesboth2_df)
@@ -1186,21 +1074,24 @@ levels(confboth_2$abclabel) <- c( "(a) ", "(b) ")
 
 ##### plot specifications###
 
+groupdistcontrol<-groupdistcontrol %>% mutate(abclabel=exp)
+levels(groupdistcontrol$abclabel) <- c("(a) ", "(b) ")
+
+
+groupdistancesboth2_df<-groupdistancesboth2_df %>% mutate(abclabel=exp)
+levels(groupdistancesboth2_df$abclabel)<- c("(a) ", "(b) ")
+
+
 confboth_2$exp<-mapvalues(confboth_2$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
 
 confboth_2$exp<- factor(confboth_2$exp, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
 
 
 groupdistcontrol$exp<-mapvalues(groupdistcontrol$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
 
 groupdistcontrol$exp<- factor(groupdistcontrol$exp, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
 
-groupdistcontrol<-groupdistcontrol %>% mutate(abclabel=exp)
-levels(groupdistancesboth2_df$abclabel) <- c( "(a) ", "(b) ")
 
-groupdistancesboth2_df<-groupdistancesboth2_df %>% mutate(abclabel=exp)
-levels(groupdistancesboth2_df$abclabel) <- c( "(a) ", "(b) ")
 
 
 groupdistancesboth2_df$exp<-mapvalues(groupdistancesboth2_df$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
@@ -1247,7 +1138,7 @@ disttocentroidplot<- ggplot(data=groupdistancesboth2_df) +
 ```
 
 
-```{r - Calculate the distance BTWN centroids }
+```{r - Calculate the distance BTWN centroids (logdata) }
 
 ##pulling out the group centroids by year####
 
@@ -1309,7 +1200,7 @@ aictable(rawaic,nR)
 ```
 
 
-```{r - recreate FIG 3 cd, distance BTWN centroids }
+```{r - recreate FIG 3 cd, distance BTWN centroids (logdata)}
 
 centroiddists$year<-as.numeric(as.character(centroiddists$year))
 
@@ -1450,7 +1341,7 @@ grid.arrange(g11, g22 , ncol = 1, heights = c(1, 1))
 
 
 ###SINOUSITY####
-```{r - calculate sinuosity of trajectories}
+```{r - calculate sinuosity of trajectories (log data)}
 
 #https://cran.rstudio.com/web/packages/trajr/vignettes/trajr-vignette.html#
 
@@ -1550,50 +1441,6 @@ trajectoriesboth<-rbind(trajectoriesplotdffirst_2, trajectoriesplotdfsecond_2)
 
 sinuosityavgbydecade<-trajectoriesboth%>% group_by(exp, ntrt, decade) %>% dplyr::summarise(sinuosityavg=mean(sinuosity, na.rm=TRUE),sdsinuosiy=sd(sinuosity, na.rm=TRUE),sesinuosity=sd(sinuosity, na.rm=TRUE)/sqrt(n()), n=n())
 
-
-
-##for plotting###
-sinuosityavgbydecade2<-sinuosityavgbydecade %>% mutate(ntrt2=ntrt)
-
-## plot specifications
-sinuosityavgbydecade2$ntrt2  <- mapvalues(sinuosityavgbydecade2$ntrt2, from=c("9", "1", "2", "4","6"), to=c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
-
-sinuosityavgbydecade2$ntrt2 <- factor(sinuosityavgbydecade2$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
-
-
-sinuosityavgbydecade2$exp<-mapvalues(sinuosityavgbydecade2$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-sinuosityavgbydecade2$exp<- factor(sinuosityavgbydecade2$exp, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-
-
-mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title=element_text(size=12))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))
-
-
-
-sinuosityplotbydecade<- ggplot(data=sinuosityavgbydecade2, aes(x=ntrt2, y=sinuosityavg, group=ntrt2, color=ntrt2)) +
-    geom_point(size=2) +
-    geom_errorbar(aes(ymin=sinuosityavg-sesinuosity, ymax=sinuosityavg+sesinuosity), size=0.5)+
-    facet_grid(decade~exp)+ 
-    xlab("")+
-    ylab(expression('Average sinuosity (1982 - 2004)'))+
-    mytheme+
-    theme(legend.position="none")+
-    theme(legend.title = element_blank()) + 
-  theme(strip.text.x = element_text(size = 14, colour = "black"))+
-   scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
-   theme(axis.text.x = element_text(angle = 25,vjust = 0.5))
-
-
-
-
-pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/sinuositybydecade.pdf", width = 6, height = 6)
-sinuosityplotbydecade
-dev.off()
-
-jpeg("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/sinuositybydecade.jpeg", width = 6, height = 6, units = 'in', res = 600)
-sinuosityplotbydecade
-dev.off()
 ```
 
 
@@ -1636,7 +1483,7 @@ sinuosityplot<- ggplot(data=sinuosityavg2, aes(x=ntrt2, y=sinuosityavg, group=nt
      theme(strip.background = element_blank())+
    theme(strip.text = element_text(size=12, face="bold"))+
      theme(strip.background = element_blank())+
-      geom_text(aes(x = 0.8, y = 6.6, label = abclabel, group =     abclabel),size = 4, color= "black", check_overlap = T)+ scale_y_continuous(labels = scales::number_format(accuracy = 0.1))
+      geom_text(aes(x = 0.8, y = 8.2, label = abclabel, group =     abclabel),size = 4, color= "black", check_overlap = T)+ scale_y_continuous(labels = scales::number_format(accuracy = 0.1))
 
 
 ```
@@ -1682,14 +1529,6 @@ sinuosityplotbydecade<- ggplot(data=sinuosityavgbydecade2, aes(x=ntrt2, y=sinuos
 
 
 
-
-pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/sinuositybydecade.pdf", width = 6, height = 6)
-sinuosityplotbydecade
-dev.off()
-
-jpeg("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/sinuositybydecade.jpeg", width = 6, height = 6, units = 'in', res = 600)
-sinuosityplotbydecade
-dev.off()
 ```
 
 
@@ -1701,15 +1540,6 @@ g111 <- ggplotGrob(sinuosityplot)
 
 grid.arrange(g111, g222 , ncol = 1, heights = c(1, 1))
 
-jpeg("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/anglesinuosity4panel.jpeg", width = 6, height = 6, units = 'in', res = 600)
-grid.arrange(g111, g222 , ncol = 1, heights = c(1, 1))
-dev.off()
-
-pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/anglesinuosity4panel.pdf", width = 6, height = 6)
-grid.arrange(g111, g222 , ncol = 1, heights = c(1, 1))
-dev.off()
-
-
 
 ```
 
@@ -1717,7 +1547,7 @@ dev.off()
 ##TRAJECTORY DISTANCE####
 
 ##
-```{r - calculate trajectory distance between years}
+```{r - calculate trajectory distance between years (log data)}
 
 ##https://cran.r-project.org/web/packages/ecotraj/vignettes/IntroductionETA.html##
 
@@ -1807,7 +1637,14 @@ trajdistlin<-lm(meantrajdist~year2, data=avgTraj_byyear_E001E002_2)
 
 
 ##nonlinear##
-trajdistnonlin<- nls(meantrajdist~ SSasymp(round(year2), Asym, R0, lrc), data = avgTraj_byyear_E001E002_2)
+
+trajdistnonlin2 <- nls(meantrajdist ~ SSlogis(year2, Asym, xmid, scal), data=avgTraj_byyear_E001E002_2) ## this works but is a diff model than we've been using up till this point...###
+
+
+trajdistnonlin3 <- nls(meantrajdist ~ 1 / (1 + year2^c),start = list(c = 1), data=avgTraj_byyear_E001E002_2)
+##simple exponential decay model####
+
+
 
 
 ##null##
@@ -1815,23 +1652,21 @@ trajdistnonlin<- nls(meantrajdist~ SSasymp(round(year2), Asym, R0, lrc), data = 
 trajdistnull<-lm(meantrajdist~1, data=avgTraj_byyear_E001E002_2)
 
 
-rawaic<-AIC(trajdistlin, trajdistnull)
+rawaic<-AIC(trajdistnonlin3,trajdistlin, trajdistnull)
 nR<-dim(avgTraj_byyear_E001E002_2)[1]  #Sample size 
 aictable(rawaic,nR)
 
-##model with a slope and without a slope fit just about the same###
+##model with a slope performs better than a model w/ slope, and better than nonlinear model###
 
+####linear model equations#####
 
-
-##listing out the equations...##
-avgTraj_byyear_E001<-subset(avgTraj_byyear_E001E002_2, exp==1)
-avgTraj_byyear_E002<-subset(avgTraj_byyear_E001E002_2, exp==2)
+##subset by experiment##
+avgTraj_byyear_E001<-subset(avgTraj_byyear_E001E002_2, exp="Intact in 1982 (E001)")
+avgTraj_byyear_E002<-subset(avgTraj_byyear_E001E002_2, exp="Disturbed in 1982 (E002)")
 
 
 modelsE001 <- dlply(avgTraj_byyear_E001, "ntrt", function(avgTraj_byyear_E001) 
   lm(meantrajdist ~ year2, data = avgTraj_byyear_E001))
-
-ldply(modelsE001, coef)
 
 # Print the summary of each model
 l_ply(modelsE001, summary, .print = TRUE)
@@ -1839,8 +1674,6 @@ l_ply(modelsE001, summary, .print = TRUE)
 
 modelsE002 <- dlply(avgTraj_byyear_E002, "ntrt", function(avgTraj_byyear_E002) 
   lm(meantrajdist ~ year2, data = avgTraj_byyear_E002))
-
-ldply(modelsE002, coef)
 
 # Print the summary of each model
 l_ply(modelsE002, summary, .print = TRUE)
@@ -1850,7 +1683,7 @@ l_ply(modelsE002, summary, .print = TRUE)
 ```
 
 
-```{r - recreate FIGURE 5ab Trajectory distance}
+```{r - recreate FIGURE 5ab Trajectory distance w linear fit}
 
 ## plot specifications
 
@@ -1895,7 +1728,7 @@ geom_smooth(data = avgTrajcontrol, aes(x=as.numeric(as.character(year2)), y=mean
     scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
     theme(strip.text = element_text(size=12, face="bold"))+
      theme(strip.background = element_blank())+
- geom_text(aes(x = 2.0, y = 0.35, label = abclabel, group =     abclabel),size = 4, color= "black", check_overlap = T)
+ geom_text(aes(x = 2.0, y = 0.25, label = abclabel, group =     abclabel),size = 4, color= "black", check_overlap = T)
 
 
 ##add text and legend##
@@ -1906,17 +1739,75 @@ avgTraj_byyear_2<-avgTraj_byyear+ theme(legend.position = c(0.85, 0.85))+theme(l
 ```
 
 
+```{r - recreate FIGURE 5ab Trajectory distance w nonlinear fit}
+
+## plot specifications
+
+avgTraj_byyear_E001E002$exp<-mapvalues(avgTraj_byyear_E001E002$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+avgTraj_byyear_E001E002$exp<- factor(avgTraj_byyear_E001E002$exp, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+
+avgTraj_byyear_E001E002_2<- avgTraj_byyear_E001E002 %>% mutate (year2=as.numeric(as.character(startingyear))+0.5-1981)
+
+avgTraj_byyear_E001E002_2<-avgTraj_byyear_E001E002_2 %>% mutate(ntrt2=ntrt)
+
+avgTraj_byyear_E001E002_2$ntrt2  <- mapvalues(avgTraj_byyear_E001E002_2$ntrt2, from=c("9", "1", "2", "3", "4","5","6"),to=c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro"))
+
+avgTraj_byyear_E001E002_2$ntrt2 <- factor(avgTraj_byyear_E001E002_2$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro"))
+
+
+
+mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title=element_text(size=12))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))
+
+
+
+###seperate the control from the others...###
+
+avgTraj_byyear_E001E002_2<-avgTraj_byyear_E001E002_2 %>% mutate(abclabel=exp)
+levels(avgTraj_byyear_E001E002_2$abclabel) <- c( "(a) ", "(b) ")
+
+avgTrajcontrol<-subset(avgTraj_byyear_E001E002_2, ntrt2=="None")
+
+
+avgTraj_byyear<- ggplot(data=avgTraj_byyear_E001E002_2) +
+    geom_point(data=avgTraj_byyear_E001E002_2, aes(x=as.numeric(as.character(year2)), y=meantrajdist, group=ntrt2, color=ntrt2)) +
+    geom_point(data=avgTrajcontrol, aes(x=as.numeric(as.character(year2)), y=meantrajdist),     color="gray45") +
+  geom_smooth(data=avgTraj_byyear_E001E002_2, aes(x=as.numeric(as.character(year2)), y=meantrajdist, group=ntrt2, color=ntrt2), method="loess", se=FALSE)+
+    facet_grid(~exp)+ 
+    ylab(expression('Annual community trajectory distance'))+
+    xlab("Time since experiment (years)")+
+    mytheme+
+    theme(legend.title = element_blank()) + 
+  theme(legend.position = "none") +
+    scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
+    theme(strip.text = element_text(size=12, face="bold"))+
+     theme(strip.background = element_blank())+
+ geom_text(aes(x = 2.0, y = 0.25, label = abclabel, group =     abclabel),size = 4, color= "black", check_overlap = T)+ylim(0, 0.27)
+
+
+##add text and legend##
+
+avgTraj_byyear_2<-avgTraj_byyear+ theme(legend.position = c(0.85, 0.85))+theme(legend.text = element_text(size = 8))+ guides(color = guide_legend(override.aes = list(size = 0.5)))+theme(legend.margin = margin(0, 0, 0, 0))+theme(legend.spacing.y = unit(0, "mm"))+ theme(legend.key.size = unit(1.5, "mm"))
+
+
+```
+
+
+
 ## ADDITIONAL SUPPLEMENTAL FIGURES AND ANALYES ###
 
 
-```{r - Indicator species analyses}
+```{r - Indicator species analyses - 3 time periods log data}
 
-##start w/ exp12subset_1#
+##start w/ exp12subset_2#
+
+head(exp12subset_2) ##log transformed values###
 
 
 ###subset to the controls and high N treatments###
 
-exp12subset_4<-subset(exp12subset_1,ntrt==9|ntrt==6)
+exp12subset_4<-subset(exp12subset_2,ntrt==9|ntrt==6)
 
 
 # Look at first 3 years of experiment
@@ -2006,10 +1897,101 @@ indvalmid[["sign"]] ##RESULTS###
 ```
 
 
-```{r - SUPPLEMENTAL SPP RICHNESS}
+
+```{r - Indicator species analyses - 2 time periods log data }
+
+##start w/ exp12subset_2#
+
+head(exp12subset_2) ##log transformed values###
 
 
-##starting with exp12subset_1###
+###subset to the controls and high N treatments###
+
+exp12subset_4<-subset(exp12subset_2,ntrt==9|ntrt==6)
+
+
+# Look at first 3 years of experiment and last 3 years of experiment
+vegearly <- subset(exp12subset_4, year=="1982"|year=="1983"|year=="1984")
+veglate <- subset(exp12subset_4, year=="2000"|year=="2002"|year=="2004")
+
+##skip years 2001, 2003 bc of imcomplete data##
+
+
+#Put data in long format
+vegearlylong <-reshape(vegearly,
+                  v.names="mass",
+                 timevar="species",
+                  idvar=c("field", "exp", "plot", "year", "ntrt", "nadd", "disk"),  
+                  times=grep("mass.above", names(vegearly), value=TRUE),
+                 varying=list(grep("mass.above", names(vegearly), value=TRUE)),
+                  direction="long")
+
+vegearlylong_2<-vegearlylong %>% mutate(stage="early") %>% mutate(stage2=1)
+
+
+veglatelong <-reshape(veglate,
+                  v.names="mass",
+                 timevar="species",
+                  idvar=c("field", "exp", "plot", "year", "ntrt", "nadd", "disk"),  
+                  times=grep("mass.above", names(veglate), value=TRUE),
+                 varying=list(grep("mass.above", names(veglate), value=TRUE)),
+                  direction="long")
+
+veglatelong_2<-veglatelong %>% mutate(stage="late")%>% mutate(stage2=3)
+
+#####merge the early and late##
+
+veglong2<-rbind(vegearlylong_2, veglatelong_2)
+
+
+
+
+# Delete prefix from species names
+veglong2$species <- with(veglong2, gsub("mass.above.","", species))
+
+rownames(veglong2)<-NULL ##get rid of rownames##
+
+##indicator species analysis##
+
+    ##convert data back to wide form##
+
+vegwide2 <- spread(veglong2, species, mass)
+
+vegwideplotdata2<-vegwide2[,1:13]
+vegwidematrix2<-vegwide2[,14:224]
+
+
+###make a column for dist_nitrogen_earymidlate##
+
+vegwideplotdata22<-vegwideplotdata2 %>% mutate(stagentrtdist= paste(stage, ntrt, exp, sep = '_'))
+
+vegwideplotdata22$stagentrtdist<-as.factor(vegwideplotdata22$stagentrtdist)
+
+vegwideplotdata22$stagentrtdist <- factor(vegwideplotdata22$stagentrtdist, levels = c("early_9_1", "early_6_1", "early_9_2", "early_6_2", "late_9_1", "late_6_1", "late_9_2", "late_6_2"))
+
+vegwideplotdata33<-vegwideplotdata22 %>% mutate(stagentrtdist2= as.numeric(stagentrtdist))
+
+vegwideplotdata33$stagentrtdist2<-as.factor(vegwideplotdata33$stagentrtdist2)
+
+vegwideplotdata3$stagentrtdist2 <- factor(vegwideplotdata3$stagentrtdist2, levels = c("1", "2", "3", "4", "5", "6", "7", "8"))
+
+##early  late ##
+
+##indicator spp analyses###
+
+indvalearlylate = multipatt(vegwidematrix2,vegwideplotdata33$stagentrtdist2,max.order = 3, control = how(nperm=99))## just looks at the individual groups, and twos  ##
+
+
+indvalearlylate[["sign"]] ##RESULTS###
+
+```
+
+
+
+```{r - SUPPLEMENTAL SPP RICHNESS raw data}
+
+
+##starting with exp12subset_1###raw biomass data###
 
 
 ###summarize##
@@ -2079,7 +2061,7 @@ spprichnesstime<-richnessaverage_3 %>% ggplot(aes(x=year2, y=meanrichness, group
 ```
 
 
-```{r - SUPPLEMENTAL Biomass over time}
+```{r - SUPPLEMENTAL Biomass over time raw data}
 
 ##start with exp12subset_1###
 
@@ -2168,7 +2150,7 @@ totalbiomass<-totalbiomassdf3 %>% ggplot(aes(x=year2, y=totalplotbiomass, color=
 ```
 
 
-```{r - SUPPLEMENTAL Functional groups over time}
+```{r - SUPPLEMENTAL Functional groups over time raw data}
 
 ##start with the sum_all_sp_df and totabiomassdf2 dataframes ####
 
@@ -2253,131 +2235,16 @@ propfunctionalgrouptime<-sumfuntionalgroupdf3 %>% ggplot(aes(x=year2, y=propbiom
 
 
 
-```{r - species turnover (gains and losses for plots through time)}
 
-##start w/ exp12subset_1##
-
-
-da <- exp12subset_1
-
-#Put data in long format
-da.long <-reshape(da,
-                  v.names="mass",
-                 timevar="species",
-                  idvar=c("field", "exp", "plot", "year", "ntrt", "nadd", "disk"),  
-                  times=grep("mass.above", names(da), value=TRUE),
-                 varying=list(grep("mass.above", names(da), value=TRUE)),
-                  direction="long")
-# Delete prefix from species names
-da.long$species <- with(da.long, gsub("mass.above.","", species))
-
-da.long2<-da.long %>% dplyr::select(field, exp, disk, ntrt, plot, year, species, mass) %>% mutate(expfieldntrtplot= paste(exp,field, ntrt, plot, sep = '_')) 
-
-
-da.long2$year<-as.numeric(as.character(da.long2$year))
-
-
-###apperances and disappearences of spp####
-
-appearancedf<-turnover(df=da.long2, time.var="year", species.var="species", abundance.var="mass", replicate.var="expfieldntrtplot", metric="appearance")
-
-disappearancedf<-turnover(df=da.long2, time.var="year", species.var="species", abundance.var="mass", replicate.var="expfieldntrtplot", metric="disappearance")
-
-
-##combine dataframes####
-
-appearancedf_2<-appearancedf %>% mutate(metric="appearences")
-
-disappearancedf_2<-disappearancedf %>% mutate(metric="disappearences")
-
-colnames(appearancedf_2) <- c("propspecies", "year", "expfieldntrtplot", "metric")
-colnames(disappearancedf_2) <- c("propspecies", "year", "expfieldntrtplot", "metric")
-
-
-bothappeardisappear<-rbind(appearancedf_2,disappearancedf_2)
-
-bothappeardisappear_2<-separate(data = bothappeardisappear, col = expfieldntrtplot, into = c("exp", "field", "ntrt", "plot"))
-
-
-#####summarize by ntrt and disturbance treatments###
-
-speciesturnover<-bothappeardisappear_2%>% group_by(year, exp, ntrt, metric) %>% dplyr::summarise(meanprop=mean(propspecies, na.rm=TRUE),sdprop=sd(propspecies, na.rm=TRUE),sepropspecies=sd(propspecies, na.rm=TRUE)/sqrt(n()), n=n())
-
-###subset###
-
-speciesturnover_2<-speciesturnover%>% mutate(ntrt2=ntrt)%>% mutate(exp2=exp) %>%  mutate (year2=as.numeric(as.character(year-1981)))
-
-
-sppappearences<-subset(speciesturnover_2, metric=="appearences")
-sppdisappearences<-subset(speciesturnover_2, metric=="disappearences")
-
-
-
-##plot specifications###
-
-mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title=element_text(size=12))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))+ theme(panel.grid.major = element_line(colour = "gray 85"))+ theme(panel.grid.minor = element_line(colour = "gray 95"))
-
-
-
-
-speciesturnover_2$ntrt2  <- mapvalues(speciesturnover_2$ntrt2, from=c("9", "1", "2", "4","6"),
-                               to=c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
-speciesturnover_2$ntrt2 <- factor(speciesturnover_2$ntrt2, levels = c("None", "0 N+micro", "1 N + micro",  "3.4 N + micro","9 N + micro"))
-
-
-speciesturnover_2$exp2<-mapvalues(speciesturnover_2$exp2, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-speciesturnover_2$exp2 <- factor(speciesturnover_2$exp2, levels =c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-
-sppappearencesplot<-sppappearences %>% ggplot(aes(x=year2, y=meanprop, color=ntrt2, fill=ntrt2))+
-    geom_point()+
-    geom_errorbar(aes(ymin=meanprop-sepropspecies, ymax=meanprop+sepropspecies), size=0.5)+
-    geom_smooth(method="loess")+
-    facet_grid(ntrt2~exp2) + 
-    mytheme+
-    ylab("Proportion of new species appearances")+
-    xlab("Time since experiment")+
-    mytheme+
-    theme(legend.title = element_blank())+
-    theme(legend.position = "none") +
-  theme(strip.text.x = element_text(size = 14, colour = "black"))+
-   scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
-   scale_fill_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
-     theme(strip.background = element_blank())
-
-
-
-sppdisappearencesplot<-sppdisappearences %>% ggplot(aes(x=year2, y=meanprop, color=ntrt2, fill=ntrt2))+
-    geom_point()+
-    geom_errorbar(aes(ymin=meanprop-sepropspecies, ymax=meanprop+sepropspecies), size=0.5)+
-    geom_smooth(method="loess")+
-    facet_grid(ntrt2~exp2) + 
-    mytheme+
-    ylab("Proportion of species disappearences")+
-    xlab("Time since experiment")+
-    ylim(0,0.6)+
-    mytheme+
-    theme(legend.title = element_blank())+
-    theme(legend.position = "none") +
-  theme(strip.text.x = element_text(size = 14, colour = "black"))+
-   scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
-   scale_fill_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
-     theme(strip.background = element_blank())
-
-
-```
-
-
-###What I GOT UP TO 4/14/22###
-
-
+##additional plots not included in paper###
 
 
 ```{r - pCOA species last few years}
 
 
-exp12subset_2004<-subset(exp12subset_1, year==2004)
+##start with log transformed data###
+
+exp12subset_2004<-subset(exp12subset_2, year==2004)
 
 
 ##just the veg data##
@@ -2399,7 +2266,7 @@ PCOA2004<-pcoa(dist2004)
 
 ##plot the ord##
 
-pcoa1<-plot(PCOA2004)
+#pcoa1<-plot(PCOA2004)
 
 
 ## extracting the axis scores##
@@ -2477,7 +2344,7 @@ PCOA2004plot <- ggplot() +
    mytheme+
     theme(strip.text.x = element_text(size = 14, colour = "black"))+
     theme(strip.text.y = element_text(size = 14, colour = "black"))+
-    theme(legend.position = c(0.5, 0.15),
+    theme(legend.position = c(0.89, 0.35),
           legend.spacing.x = unit(0.03, 'cm'))+
     theme(legend.text = element_text(size=6))+
     theme(legend.key.size = unit(0.4, 'cm'))
@@ -2490,7 +2357,10 @@ PCOA2004plot <- ggplot() +
 ```{r - NMDS species last few years}
 
 
-exp12subset_2004<-subset(exp12subset_1, year==2004)
+##start with log transformed data###
+
+exp12subset_2004<-subset(exp12subset_2, year==2004)
+
 
 
 ##just the veg data##
@@ -2528,11 +2398,11 @@ endf$species<-str_remove(endf$species, "mass.above.")
 
 ##select out certain spp only####
 
-endfmain<-endf %>% filter(r2 > 0.2)
+endfmain<-endf %>% filter(r2 > 0.3)
 
 species2<-c("Agro.rep", "Ambro.cor", "Carex", "Euph.cor", "Lath.ven", "Poa.pra", "Schiz.scop", "Sorg.nut")
 
-enddfmain2<-cbind(endfmain, species2)
+enddfmain2<-as.data.frame(cbind(endfmain, species2))
 
 ## extracting the axis scores##
 
@@ -2591,24 +2461,23 @@ mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3
 
 NMDS2004plot <- ggplot() + 
     xlab("NMDS 1") +
-    ylab("NMDS 2") +  xlim(-0.5, 0.5)+ylim(-0.6, 0.3)+
+    ylab("NMDS 2") + 
     geom_point(data=NMDSandplots2004_2, 
                aes(x=MDS1, y=MDS2, colour=ntrt2, shape=exp2), 
                size=1)+
   geom_point(data=NMDSavg_2, 
                aes(x=meanAxis1, y=meanAxis2, colour=ntrt2, shape=exp2), 
                size=4)+
-  geom_segment(data = endfmain,
+  geom_segment(data = enddfmain2,
                aes(x = 0, xend = NMDS1/2, y = 0, yend = NMDS2/2),
                arrow = arrow(length = unit(0.25, "cm")), colour = "grey") +
-  geom_text(data = endfmain, aes(x = NMDS1/2, y = NMDS2/2, label = species2),
-            size = 3, position=position_jitter(width=0.05,height=0.05))+
-          scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
-  scale_fill_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+ 
-   mytheme+
+  geom_text(data = enddfmain2, aes(x = NMDS1/2, y = NMDS2/2, label = species2),
+            size = 2.5, position=position_jitter(height=0.03, width=0.03))+
+  scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+  
+  mytheme+
     theme(strip.text.x = element_text(size = 14, colour = "black"))+
     theme(strip.text.y = element_text(size = 14, colour = "black"))+
-    theme(legend.position = c(0.85, 0.17),
+    theme(legend.position = c(0.85, 0.25),
           legend.spacing.x = unit(0.03, 'cm'))+
     theme(legend.text = element_text(size=6))+
     theme(legend.key.size = unit(0.4, 'cm'))
