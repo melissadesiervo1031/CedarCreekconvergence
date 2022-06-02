@@ -25,6 +25,9 @@ library(data.table)
 library(trajr)
 library(gtable)
 library(gridExtra)
+library(codyn)
+library(indicspecies)
+library(BiodiversityR)
 
 
 
@@ -482,6 +485,63 @@ PCOAandplotsboth<-cbind(plot,PCOAaxesboth )
 ```
 
 
+```{r - Conduct a PCoA with log-transformed data using all the veg data across years}
+
+
+##make nutrient and years factors#
+
+exp12subset_1$ntrt<-as.factor(exp12subset_1$ntrt)
+exp12subset_1$year<-as.factor(exp12subset_1$year)
+
+
+##arrange the dataframe so that that columns and rows are in right order##
+exp12subset_1_sorted<-exp12subset_1%>%arrange(year)%>%arrange(plot)%>%arrange(field)%>%arrange(exp)
+
+##just the veg data##
+
+veg<-exp12subset_1_sorted%>% dplyr::select(`mass.above.ACHILLEA MILLEFOLIUM(LANULOSA)`:`mass.above.VIOLA SP.`)
+
+
+###log transformation####
+
+vegmatrix<-as.matrix(veg)
+
+logveg<-log(1+vegmatrix)
+
+
+##just the plot data##
+plot<-exp12subset_1_sorted%>% dplyr::select('field':'ntrt2')
+
+## Bray curtis dissimiliarty matrix##
+logdistE1andE2<-vegdist(logveg, method="bray")
+logBCdistall<-as.matrix(logdistE1andE2)  ##into a matrix#
+logBCdistalldf<-as.data.frame(logBCdistall)  #into a dataframe#
+
+logBCdistalldf2<-cbind(plot,logBCdistalldf) #merge plot data w/ dissim matrix##
+
+##logBCdistalldf2 has the plot info and the BC dissimilarity matrix for the entire experiment (E001 and E002, all three fields combined, with a subsetted selection of the ntrt treatments)
+
+###PcOA for both E011 and E002 together####
+
+logPCOA_allfieldE12 <- pcoa(logdistE1andE2)  ## takes a while##
+
+#PCOA_allfieldE12 <- cmdscale(distE1andE2)  ## Another way of doing the pcoa that gives same results#
+
+
+## extracting the axis scores for each exp##
+
+logPCOAaxesboth <- logPCOA_allfieldE12$vectors[,c(1,2)]
+
+
+##merge the axis scores with the plot data ###
+
+logPCOAandplotsboth<-cbind(plot,logPCOAaxesboth )
+
+
+```
+
+
+
 ```{r - Conduct permanova: nutrient, disturbance, field effect}
 
 
@@ -527,6 +587,60 @@ permmaster3<-subset(permmaster2,sourcevariation=="Disturbance"|sourcevariation==
 ```
 
 
+
+```{r - Conduct permanova log transformed: nutrient, disturbance, field effect}
+
+
+
+####for this analysis, getting rid of the years where not every field was sampeled##
+
+exp12subset_2<-exp12subset_1%>%filter(year!=1995)%>%filter(year!=1998)%>%filter(year!=2001)%>%filter(year!=2003)
+
+###log transform the biomass data###
+
+justveg<-as.matrix(exp12subset_2[,12:222])
+
+logveg<-log(1+justveg)
+
+logexp12subset_2<-cbind(exp12subset_2[,1:11], logveg)
+
+#drop the levels not sampeled
+
+levels(logexp12subset_2$year)
+logexp12subset_2$year <- as.factor(as.character(logexp12subset_2$year))
+
+### Extract one year to get the apply function to work#####
+
+logda.wide_1990<-subset(logexp12subset_2, year=="1990", row.names=NULL)
+
+##Do a PERMANOVA looping over years, looking at effect of exp (disturbed or not), ntrt treatment# and field (A, B, C)###
+
+###
+logpermallfields<-lapply(X = split.data.frame(x = logexp12subset_2, f=logexp12subset_2$year),function(t){
+  z<-adonis2(vegdist(t[,11:175])~exp+ntrt+field, data= logda.wide_1990)
+  return(data.frame(z))
+  }
+  )
+
+
+
+##dataframe of results##
+logpermmaster<-plyr::ldply(logpermallfields, data.frame)
+names<-c("Disturbance", "Fertilization", "Field", "residual", "total")
+
+sourcevariation<-rep(names,length(unique(logpermmaster$.id)))
+
+logpermmaster2<-cbind(sourcevariation,logpermmaster)
+  
+logpermmaster3<-subset(logpermmaster2,sourcevariation=="Disturbance"|sourcevariation=="Fertilization"|sourcevariation=="Field") 
+
+##This dataframe (permmmaster3) has the results from a permanova for each independent variable (disturbance, field, fertilization) for every year in the dataset w/ everything sampeled. The R2 column is what is plotted in Fig 1 ###
+
+
+
+```
+
+
 ```{r - recreate FIG 1, R2 over time dist, nut, field}
 
 
@@ -563,6 +677,44 @@ variancetimeall<-permmaster5 %>% ggplot(aes(x=as.numeric(year2), y=R2, group=sou
 ###
 
 ```
+
+```{r - recreate log FIG 1, R2 over time dist, nut, field}
+
+
+logpermmaster4<- logpermmaster3 %>% mutate (year=as.numeric(.id))  %>% mutate (year2=year-1981)
+
+logpermmaster4$sourcevariation<- factor(permmaster4$sourcevariation, levels = c("Disturbance", "Fertilization", "Field"))
+
+my_plotlabels = paste0('(', letters, ') ')
+
+abclabels = paste0(my_plotlabels[1:length(levels(permmaster4$sourcevariation))]) 
+
+logpermmaster5<-cbind(logpermmaster4, abclabels)
+
+
+##make the plot##
+
+mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title=element_text(size=12))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))+ theme(panel.grid.major = element_line(colour = "gray 85"))+ theme(panel.grid.minor = element_line(colour = "gray 95"))
+
+
+
+
+logvariancetimeall<-logpermmaster5 %>% ggplot(aes(x=as.numeric(year2), y=R2, group=sourcevariation)) +
+    geom_point() +
+    facet_wrap(~sourcevariation, strip.position = c("top"))+
+    geom_smooth(method="loess", colour="black", size=0.5, fill = "gray1") +
+    geom_text(aes(x = 2.0, y = 0.49, label = abclabels, group =     abclabels),size = 4,check_overlap = T)+
+    ylab(expression('Explained variation'))+
+    xlab("Time since experiment (years)")+
+    mytheme+
+    theme(strip.text = element_text(face="bold", size=12))+
+     theme(strip.background = element_blank())
+
+   
+###
+
+```
+
 
 
 
@@ -1332,40 +1484,6 @@ trajectoriesplotdf_2<-separate(data = trajectoriesplotdf, col = .id, into = c("e
 sinuosityavg<-trajectoriesplotdf_2%>% group_by(exp, ntrt) %>% dplyr::summarise(sinuosityavg=mean(sinuosity, na.rm=TRUE),sdsinuosiy=sd(sinuosity, na.rm=TRUE),sesinuosity=sd(sinuosity, na.rm=TRUE)/sqrt(n()), uprconfint=sinuosityavg+(1.96*sesinuosity),lwrconfint=sinuosityavg-(1.96*sesinuosity), n=n())
 
 
-
-##for plotting###
-sinuosityavg2<-sinuosityavg %>% mutate(ntrt2=ntrt)
-
-## plot specifications
-sinuosityavg2$ntrt2  <- mapvalues(sinuosityavg2$ntrt2, from=c("9", "1", "2", "4","6"), to=c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
-sinuosityavg2$ntrt2 <- factor(sinuosityavg2$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
-
-
-sinuosityavg2$exp<-mapvalues(sinuosityavg2$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-sinuosityavg2$exp<- factor(sinuosityavg2$exp, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-
-
-sinuosityavg2<-sinuosityavg2 %>% mutate(abclabel=exp)
-levels(sinuosityavg2$abclabel) <- c( "(c) ", "(d) ")
-
-sinuosityplot<- ggplot(data=sinuosityavg2, aes(x=ntrt2, y=sinuosityavg, group=ntrt2, color=ntrt2)) +
-    geom_point(size=2) +
-    geom_errorbar(aes(ymin=lwrconfint, ymax=uprconfint), size=1)+
-    facet_grid(~abclabel)+ 
-    xlab("")+
-    ylab(expression('Average sinuosity (1982 - 2004)'))+
-    mytheme+
-    theme(legend.position="none")+
-    theme(legend.title = element_blank()) + 
-  theme(strip.text.x = element_text(size = 14, colour = "black"))+
-   scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
-   theme(axis.text.x = element_text(angle = 25,vjust = 0.5))+
-    theme(strip.text = element_text(hjust = 0, face="bold"))+
-     theme(strip.background = element_blank())
-
-
 ```
 
 
@@ -1788,665 +1906,17 @@ avgTraj_byyear_2<-avgTraj_byyear+ theme(legend.position = c(0.85, 0.85))+theme(l
 ```
 
 
-
-###What I GOT UP TO 4/7/22###
-##SUPPLEMENTAL FIGURES###
-
-
-```{r - species turnover (gains and losses for plots through time)}
-
-exp12subset_3<-subset(exp12subset_2,ntrt==9|ntrt==1|ntrt==2|ntrt==4|ntrt==6)
-
-### this data set (exp12subset_3 has fields ABC, E001 and E002 from 1982-2004) ## > 2004 was a change in the fire regime## ONLY the control, low (1), med(3.4), and high (9.5) nutrient treatments) ##
-
-##make nutrient and years factors#
-
-exp12subset_3$ntrt<-as.factor(exp12subset_3$ntrt)
-exp12subset_3$year<-as.factor(exp12subset_3$year)
-
-
-####spp table code written by E. Seabloom##
-
-da <- exp12subset_3
-
-#Put data in long format
-da.long <-reshape(da,
-                  v.names="mass",
-                 timevar="species",
-                  idvar=c("field", "exp", "plot", "year", "ntrt", "nadd", "disk"),  
-                  times=grep("mass.above", names(da), value=TRUE),
-                 varying=list(grep("mass.above", names(da), value=TRUE)),
-                  direction="long")
-# Delete prefix from species names
-da.long$species <- with(da.long, gsub("mass.above.","", species))
-
-da.long2<-da.long %>% dplyr::select(field, exp, disk, ntrt, plot, year, species, mass) %>% mutate(expfieldntrtplot= paste(exp,field, ntrt, plot, sep = '_')) 
-
-library(codyn)
-
-da.long2$year<-as.numeric(as.character(da.long2$year))
-
-appearancedf<-turnover(df=da.long2, time.var="year", species.var="species", abundance.var="mass", replicate.var="expfieldntrtplot", metric="appearance")
-
-disappearancedf<-turnover(df=da.long2, time.var="year", species.var="species", abundance.var="mass", replicate.var="expfieldntrtplot", metric="disappearance")
-
-
-appearancedf_2<-appearancedf %>% mutate(metric="appearences")
-
-disappearancedf_2<-disappearancedf %>% mutate(metric="disappearences")
-
-colnames(appearancedf_2) <- c("propspecies", "year", "expfieldntrtplot", "metric")
-colnames(disappearancedf_2) <- c("propspecies", "year", "expfieldntrtplot", "metric")
-
-
-bothappeardisappear<-rbind(appearancedf_2,disappearancedf_2)
-
-bothappeardisappear_2<-separate(data = bothappeardisappear, col = expfieldntrtplot, into = c("exp", "field", "ntrt", "plot"))
-
-
-#####summarize by ntrt and disturbance treatments###
-
-speciesturnover<-bothappeardisappear_2%>% group_by(year, exp, ntrt, metric) %>% dplyr::summarise(meanprop=mean(propspecies, na.rm=TRUE),sdprop=sd(propspecies, na.rm=TRUE),sepropspecies=sd(propspecies, na.rm=TRUE)/sqrt(n()), n=n())
-
-##plot###
-
-mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title=element_text(size=12))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))+ theme(panel.grid.major = element_line(colour = "gray 85"))+ theme(panel.grid.minor = element_line(colour = "gray 95"))
-
-
-###for plotting###
-
-speciesturnover_2<-speciesturnover%>% mutate(ntrt2=ntrt)%>% mutate(exp2=exp) %>%  mutate (year2=as.numeric(as.character(year-1981)))
-
-
-###
-
-speciesturnover_2$ntrt2  <- mapvalues(speciesturnover_2$ntrt2, from=c("9", "1", "2", "4","6"),
-                               to=c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
-speciesturnover_2$ntrt2 <- factor(speciesturnover_2$ntrt2, levels = c("None", "0 N+micro", "1 N + micro",  "3.4 N + micro","9 N + micro"))
-
-
-speciesturnover_2$exp2<-mapvalues(speciesturnover_2$exp2, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-speciesturnover_2$exp2 <- factor(speciesturnover_2$exp2, levels =c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-###subset###
-
-sppappearences<-subset(speciesturnover_2, metric=="appearences")
-sppdisappearences<-subset(speciesturnover_2, metric=="disappearences")
-
-sppappearencesplot<-sppappearences %>% ggplot(aes(x=year2, y=meanprop, color=ntrt2, fill=ntrt2))+
-    geom_point()+
-    geom_errorbar(aes(ymin=meanprop-sepropspecies, ymax=meanprop+sepropspecies), size=0.5)+
-    geom_smooth(method="loess")+
-    facet_grid(ntrt2~exp2) + 
-    mytheme+
-    ylab("Proportion of new species appearances")+
-    xlab("Time since experiment")+
-    mytheme+
-    theme(legend.title = element_blank())+
-    theme(legend.position = "none") +
-  theme(strip.text.x = element_text(size = 14, colour = "black"))+
-   scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
-   scale_fill_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
-     theme(strip.background = element_blank())
-
-
-
-sppdisappearencesplot<-sppdisappearences %>% ggplot(aes(x=year2, y=meanprop, color=ntrt2, fill=ntrt2))+
-    geom_point()+
-    geom_errorbar(aes(ymin=meanprop-sepropspecies, ymax=meanprop+sepropspecies), size=0.5)+
-    geom_smooth(method="loess")+
-    facet_grid(ntrt2~exp2) + 
-    mytheme+
-    ylab("Proportion of species disappearences")+
-    xlab("Time since experiment")+
-    ylim(0,0.6)+
-    mytheme+
-    theme(legend.title = element_blank())+
-    theme(legend.position = "none") +
-  theme(strip.text.x = element_text(size = 14, colour = "black"))+
-   scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
-   scale_fill_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
-     theme(strip.background = element_blank())
-
-
-jpeg("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/sppappearences.jpeg", width = 6, height = 7, units = 'in', res = 600)
-sppappearencesplot
-dev.off()
-
-pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/sppappearences.pdf", width = 5, height = 6)
-sppappearencesplot
-dev.off()
-
-
-
-###
-jpeg("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/sppdisappearences.jpeg", width = 6, height = 7, units = 'in', res = 600)
-sppdisappearencesplot
-dev.off()
-
-pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/sppdisappearences.pdf", width = 5, height = 6)
-sppdisappearencesplot
-dev.off()
-
-
-```
-
-
-
-```{r - SUPPLEMENTAL graph PcOA convex hulls}
-
-
-library(BiodiversityR) # also loads vegan
-library(ggplot2)
-library(readxl)
-library(ggsci)
-library(ggrepel)
-library(ggforce)
-
-
-BioR.theme <- theme(
-        panel.background = element_blank(),
-        panel.border = element_blank(),
-        panel.grid = element_blank(),
-        axis.line = element_line("gray25"),
-        text = element_text(size = 12),
-        axis.text = element_text(size = 10, colour = "gray25"),
-        axis.title = element_text(size = 14, colour = "gray25"),
-        legend.title = element_text(size = 14),
-        legend.text = element_text(size = 14),
-        legend.key = element_blank())
-
-
-
-
-
-###
-
-##Ordination.model1 <- metaMDS(dune, distance='bray', k=2, trymax=1, autotransform=TRUE, noshare=0.1, expand=TRUE, trace=1, plot=FALSE)
-
-
-Ordination.model2 <- cmdscale (distE1andE2, eig = TRUE)
-
-
-plot1 <- ordiplot (Ordination.model2, display = 'sites', type = 'text', choices=c(1,2))
-
-sites.long1 <- sites.long(plot1, env.data=PCOAandplotsboth[,1:10])
-
-sites.long2<-sites.long1 %>%   mutate(expntrt= paste(exp, ntrt, sep = '_'))
-
-
-###just the first year#####
-sites.long1982<-subset(sites.long2 , year==1982)
-sites.long1992<-subset(sites.long2 , year==1992)
-sites.long2004<-subset(sites.long2 , year==2004)
-
-sites.longthreeyears<-rbind(sites.long1982, sites.long1992, sites.long2004)
-
-sites.longthreeyears_2<-sites.longthreeyears%>% mutate(ntrt2=ntrt)%>% mutate(exp2=exp) 
-
-
-###
-
-sites.longthreeyears_2$ntrt2  <- mapvalues(sites.longthreeyears_2$ntrt2, from=c("9", "1", "2", "4","6"),
-                               to=c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
-sites.longthreeyears_2$ntrt2 <- factor(sites.longthreeyears_2$ntrt2, levels = c("None", "0 N+micro", "1 N + micro",  "3.4 N + micro","9 N + micro"))
-
-
-sites.longthreeyears_2$exp2<-mapvalues(sites.longthreeyears_2$exp2, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-sites.longthreeyears_2$exp2 <- factor(sites.longthreeyears_2$exp2, levels =c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-
-
-###
-  
-centroidsonlythreeyears=centroids.long(sites.longthreeyears_2, grouping=sites.longthreeyears_2$expntrtyear, centroids.only = TRUE)
-
-centroidsonlythreeyears_2<-separate(data = centroidsonlythreeyears, col = Centroid, into = c("exp","ntrt", "year"))
-
-centroidsonlythreeyears_3<-centroidsonlythreeyears_2%>% mutate(ntrt2=ntrt)%>% mutate(exp2=exp)
-
-centroidsonlythreeyears_3$ntrt2  <- mapvalues(centroidsonlythreeyears_3$ntrt2, from=c("9", "1", "2", "4","6"),
-                               to=c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
-centroidsonlythreeyears_3$ntrt2 <- factor(centroidsonlythreeyears_3$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
-
-
-centroidsonlythreeyears_3$exp2<-mapvalues(centroidsonlythreeyears_3$exp2, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-centroidsonlythreeyears_3$exp2 <- factor(centroidsonlythreeyears_3$exp2, levels =c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-###
-
-#####joining the centroids with original points###
-
-
-mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title=element_text(size=12))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))
-
-
-scrs<-sites.longthreeyears_2[,11:12]
-scrs <- cbind(as.data.frame(scrs), expntrtyear = sites.longthreeyears_2$expntrtyear)
-
-cent <- aggregate(cbind(axis1, axis2) ~ expntrtyear, data = scrs, FUN = mean)
-
-segs <- merge(scrs, setNames(cent, c('expntrtyear','oPCOA1','oPCOA2')),
-              by = 'expntrtyear', sort = FALSE)
-
-segs_2<-separate(data = segs, col = expntrtyear, into = c("exp", "ntrt", "year"))
-
-segs_3<-segs_2 %>% mutate(ntrt2=ntrt)%>% mutate(exp2=exp)
-
-segs_3$ntrt2  <- mapvalues(segs_3$ntrt2, from=c("9", "1", "2", "4","6"),
-                               to=c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
-segs_3$ntrt2 <- factor(segs_3$ntrt2, levels = c("None", "0 N+micro", "1 N + micro",  "3.4 N + micro","9 N + micro"))
-
-
-segs_3$exp2<-mapvalues(segs_3$exp2, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-segs_3$exp2 <- factor(segs_3$exp2, levels =c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-
-
-#####the plot###
-
-
-centroidsfigthreeyears <- ggplot() + 
-    xlab("PCoA 1") +
-    ylab("PCoA 2") +  
-    geom_segment(data = as.data.frame(segs_3),
-               mapping = aes(x= axis1, y = axis2, xend = oPCOA1, yend = oPCOA2, group=exp2, color=ntrt2)) +
-    geom_point(data=sites.longthreeyears_2, 
-               aes(x=axis1, y=axis2, colour=ntrt2), 
-               size=1)+
-     geom_mark_ellipse(data=centroidsonlythreeyears_3, 
-                      aes(x=axis1c, y=axis2c,  
-                          fill=after_scale(alpha(colour, 0.2))), 
-                      expand=0, size=0.2, show.legend=FALSE)+
-   geom_point(data=centroidsonlythreeyears_3, 
-               aes(x=axis1c, y=axis2c, fill=ntrt2), 
-               shape=22, size=4, show.legend = F)+
-   scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
-  scale_fill_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+ 
-   mytheme+
-    facet_grid(year~exp2)+
-    theme(strip.text.x = element_text(size = 14, colour = "black"))+
-    theme(strip.text.y = element_text(size = 14, colour = "black"))+
-    theme(legend.position = c(0.85, 0.9),
-          legend.spacing.x = unit(0.03, 'cm'))+
-    theme(legend.text = element_text(size=6))+
-    theme(legend.key.size = unit(0.4, 'cm'))
-
-jpeg("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/centroidsfigellipse.jpeg", width = 6, height = 7, units = 'in', res = 600)
-centroidsfigthreeyears
-dev.off()
-
-pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/centroidfigellipse.pdf", width = 5, height = 6)
-centroidsfigthreeyears
-dev.off()
-
-
-
-```
-
-
-```{r - SUPPLEMENTAL SPP RICHNESS}
-
-
-exp12subset_3<-subset(exp12subset_2,ntrt==9|ntrt==1|ntrt==2|ntrt==4|ntrt==6)
-
-
-### this data set (exp12subset_3 has fields ABC, E001 and E002 from 1982-2004) ## > 2004 was a change in the fire regime## ONLY the control, low (1), med(3.4), and high (9.5) nutrient treatments) ##
-
-##make nutrient and years factors#
-
-exp12subset_3$ntrt<-as.factor(exp12subset_3$ntrt)
-exp12subset_3$year<-as.factor(exp12subset_3$year)
-
-
-###summarize##
-###Diversity metrics for plant data###
-ShannonD_a <- diversity(exp12subset_3[,12:175], index = "shannon") ##shannon-weiner index##
-Richness_a <- specnumber(exp12subset_3[,12:175])
-Evenness_a <- ShannonD_a/log(Richness_a)
-
-###combine##
-plotdatarichness<-cbind(exp12subset_3[,1:11], Richness_a)
-
-plotdatarichnes2<- plotdatarichness%>%   mutate(expntrtyear= paste(exp, ntrt,year, sep = '_'))
-
-##average across treatments##
-
-richnessaverage<-plotdatarichnes2%>% group_by(exp, ntrt, ntrt2, year, expntrtyear) %>% dplyr::summarise(meanrichness=mean(Richness_a, na.rm=TRUE),sdrichness=sd(Richness_a, na.rm=TRUE),serichness=sd(Richness_a, na.rm=TRUE)/sqrt(n()), n=n())
-
-richness1982200s<-plotdatarichnes2 %>%filter(year < 1984|year > 2000) %>% group_by(year) %>% dplyr::summarise(meanrichness=mean(Richness_a, na.rm=TRUE),sdrichness=sd(Richness_a, na.rm=TRUE),serichness=sd(Richness_a, na.rm=TRUE)/sqrt(n()), n=n())
-
-
-##plotting specifications###
-
-richnessaverage$exp<-mapvalues(richnessaverage$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-richnessaverage$exp<- factor(richnessaverage$exp, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-
-richnessaverage_2<- richnessaverage%>% mutate (year2=as.numeric(as.character(year-1981)))
-
-
-##
-richnessaverage_3<-richnessaverage_2 %>% mutate(ntrt2=ntrt)
-
-richnessaverage_3$ntrt2  <- mapvalues(richnessaverage_3$ntrt2, from=c("9", "1", "2", "4","6"), to=c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
-
-richnessaverage_3$ntrt2 <- factor(richnessaverage_3$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
-
-mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title=element_text(size=12))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))+ theme(panel.grid.major = element_line(colour = "gray 85"))+ theme(panel.grid.minor = element_line(colour = "gray 95"))
-
-
-
-
-spprichnesstime<-richnessaverage_3 %>% ggplot(aes(x=year2, y=meanrichness, group=ntrt2, color=ntrt2, fill=ntrt2))+
-    geom_point()+
-    geom_smooth(method="loess")+
-    facet_grid(ntrt2~exp) + 
-    mytheme+
-    ylab("Plot species richness")+
-    xlab("Time since experiment")+
-    mytheme+
-    theme(legend.title = element_blank()) + 
-  theme(legend.position = "none") +
-  theme(strip.text.x = element_text(size = 14, colour = "black"))+
-   scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
-   scale_fill_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
-     theme(strip.background = element_blank())
-
-
-
-pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/spprichnesstime.pdf", width = 6, height =6 )
-spprichnesstime
-dev.off()
-
-
-
-
-
-```
-
-
-```{r - SUPPLEMENTAL Biomass and graph functional groups over time}
-
-exp12subset_3<-subset(exp12subset_2,ntrt==9|ntrt==1|ntrt==2|ntrt==4|ntrt==6)
-
-### this data set (exp12subset_3 has fields ABC, E001 and E002 from 1982-2004) ## > 2004 was a change in the fire regime## ONLY the control, low (1), med(3.4), and high (9.5) nutrient treatments) ##
-
-##make nutrient and years factors#
-
-exp12subset_3$ntrt<-as.factor(exp12subset_3$ntrt)
-exp12subset_3$year<-as.factor(exp12subset_3$year)
-
-##
-##wide to long form##
-
-exp12subset_long <- gather(exp12subset_3, species, biomass, 'mass.above.ACHILLEA MILLEFOLIUM(LANULOSA)':'mass.above.VIOLA SP.', factor_key=TRUE)
-
-##remove extra text##
-library(stringr)
-
-exp12subset_long $species<-str_remove(exp12subset_long$species, "mass.above.")
-
-
-##make a column for exp_ntrt_year##
-
-exp12subset_long_2<-exp12subset_long  %>% mutate( expntrtyear_2= paste(exp,ntrt, year, sep = '_'))
-
-exp12subset_long_3<-exp12subset_long_2 %>% mutate(expntrt= paste(exp,ntrt, sep = '_')) %>% dplyr::select(field, plot, disk,year, ntrt, nadd, expntrtyear_2, expntrt, species, biomass)
-
-##sum all species abundance across plots with the same treatment group and year ###includes zeroes!!!#####
-
-sum_allsp_exp12ABC<-exp12subset_long_3%>% group_by(species, disk,year, ntrt, nadd, expntrtyear_2, expntrt,) %>% dplyr::summarise(sumbiomass=sum(biomass, na.rm=TRUE),n=n())
-
-
-sum_AGROREP_exp12ABC<-exp12subset_long_3%>%filter(species=="AGROPYRON REPENS")%>% group_by(plot, species, disk,year, ntrt, nadd, expntrtyear_2, expntrt,) %>% dplyr::summarise(sumAgro=sum(biomass, na.rm=TRUE),n=n())
-
-
-avgagropyron<-sum_AGROREP_exp12ABC%>%filter(year == 2002)%>% group_by(disk, ntrt) %>% dplyr::summarise(meanAgro=mean(sumAgro, na.rm=TRUE),n=n())
-
-
-
-###get rid of years where we don't have all 18 plots###
-
-sum_allsp_exp12ABC_2<-subset(sum_allsp_exp12ABC, n==18)
-
-sum_allsp_df<-as.data.frame(sum_allsp_exp12ABC_2)
-
-
-##calculating the total biomass##
-
-totalbiomassplot<-exp12subset_long_3%>% group_by(plot,field, disk,year, ntrt, nadd, expntrtyear_2, expntrt,) %>% dplyr::summarise(totalplotbiomass=sum(biomass, na.rm=TRUE),n=n()) %>% 
-
-##average across plots##
-
-totalbiomassgroups<-totalbiomassplot%>% group_by(disk,year, ntrt, nadd, expntrtyear_2, expntrt,) %>% dplyr::summarise(totalplotbiomass=mean(totalplotbiomass, na.rm=TRUE),n=n())
-
-totalbiomassgroups2<-subset(totalbiomassgroups, n==18)
-
-totalbiomassdf<-as.data.frame(totalbiomassgroups2)
-
-totalbiomassdf2<-totalbiomassdf %>% select(expntrtyear_2, totalplotbiomass)
-
-####summary across treatments all years###
-
-biomasssummary<-totalbiomassdf%>% group_by(disk) %>% dplyr::summarise(totalplotbiomass=mean(totalplotbiomass, na.rm=TRUE),n=n())
-
-
-##plot total biomass##
-
-head(totalbiomassdf)
-
-totalbiomassdf$disk<-mapvalues(totalbiomassdf$disk, from=c("0", "1"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-totalbiomassdf$disk<- factor(totalbiomassdf$disk, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-
-##
-totalbiomassdf22<-totalbiomassdf %>% mutate(ntrt2=ntrt)
-
-totalbiomassdf22$ntrt2  <- mapvalues(totalbiomassdf22$ntrt2, from=c("9", "1", "2", "4","6"), to=c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
-
-totalbiomassdf22$ntrt2 <- factor(totalbiomassdf22$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
-
-
-totalbiomassdf3<- totalbiomassdf22 %>% mutate(year2=as.numeric(as.character(year))-1981)
-
-
-
-
-
-###plotting###
-
-
-
-totalbiomass<-totalbiomassdf3 %>% ggplot(aes(x=year2, y=totalplotbiomass, color=ntrt2))+
-    geom_line() + 
-    facet_grid(ntrt2~disk) + 
-    mytheme+
-    ylab(expression(paste("Total aboveground biomass g / m  "^2)))+
-    xlab("Time since experiment")+
-    theme(legend.title = element_blank())+
-    theme(legend.key.size = unit(0.5, "cm"))+scale_fill_viridis_d(option="C", na.value="grey72")+
-    theme(strip.background = element_blank())+theme(strip.text.x = element_text(size = 14, colour = "black"))+
-   scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+ theme(legend.position = "none") 
-    
-jpeg("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/totalbiomass.jpeg", width = 6, height = 6, units = 'in', res = 600)
-totalbiomass
-dev.off()
-
-pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/totalbiomass.pdf", width = 6, height = 6)
-totalbiomass
-dev.off()
-
-
-
-
-
-
-##merge the spp with total plot biomass##
-
-sum_allsp_df_2 <- (merge(sum_allsp_df,totalbiomassdf2, by = 'expntrtyear_2', sort=FALSE, all.x=TRUE))
-
-sum_allsp_df_3<-sum_allsp_df_2 %>% mutate(propbiomass=sumbiomass/totalplotbiomass)
-
-### this data set (sum_allsp_df_3 has the sum of all spp in each year in each dist/ntrt treatmet and the proportion of biomass of that group##
-
-
-###merge the functional group and other information##
-
-specieslookup<-da %>% distinct(species, .keep_all = TRUE)
-
-specieslookup2<-specieslookup %>% dplyr::select(species,functional.group,duration,lifeform, pathway, origin)
-
-
-mergedfuncgroup <- (merge(specieslookup2,sum_allsp_df_3, by = 'species', sort=FALSE, all.y=TRUE))
-
-mergedfuncgroup_2<-mergedfuncgroup%>% mutate(functional.group2= paste(functional.group, origin, sep = '_'))
-
-####now sum up by functional group + origin ##
-
-sumfunctionalgroup<-mergedfuncgroup_2%>% group_by(disk,year, ntrt, nadd, expntrtyear_2, expntrt,functional.group, totalplotbiomass) %>% dplyr::summarise(sumbiomass=sum(sumbiomass, na.rm=TRUE)) %>% mutate(propbiomass=sumbiomass/totalplotbiomass)
-
-sumfuntionalgroupdf<-as.data.frame(sumfunctionalgroup)
-
-###reordering so that other is last, first grasses, then forbs##
-
-sumfuntionalgroupdf$functional.group<-factor(sumfuntionalgroupdf$functional.group, levels=c("C3", "C4" , "S", "W", "L", "F"))
-
-
-sumfuntionalgroupdf2<-sumfuntionalgroupdf[complete.cases(sumfuntionalgroupdf), ]
-
-#drop the levels not sampeled
-sumfuntionalgroupdf2$functional.group <- as.factor(as.character(sumfuntionalgroupdf2$functional.group))
-levels(sumfuntionalgroupdf2$functional.group)
-
-
-##for plotting####
-
-sumfuntionalgroupdf2$disk<-mapvalues(sumfuntionalgroupdf2$disk, from=c("0", "1"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-sumfuntionalgroupdf2$disk<- factor(sumfuntionalgroupdf2$disk, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-
-##
-sumfuntionalgroupdf2<-sumfuntionalgroupdf2 %>% mutate(ntrt2=ntrt)
-
-sumfuntionalgroupdf2$ntrt2  <- mapvalues(sumfuntionalgroupdf2$ntrt2, from=c("9", "1", "2", "4","6"), to=c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
-
-sumfuntionalgroupdf2$ntrt2 <- factor(sumfuntionalgroupdf2$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
-
-
-sumfuntionalgroupdf3<- sumfuntionalgroupdf2 %>% mutate(year2=year-1981)
-
-
-
-mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title=element_text(size=12))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))
-
-
-
-###plotting###
-
-sumfuntionalgroupdf3$functional.group<-factor(sumfuntionalgroupdf3$functional.group, levels=c("C3", "C4" , "S",  "L", "F", "W"))
-
-propfunctionalgrouptime<-sumfuntionalgroupdf3 %>% ggplot(aes(x=year2, y=propbiomass, group=functional.group))+
-    geom_area(position = 'stack', aes(fill=functional.group)) + 
-    facet_grid(ntrt2~disk) + 
-    mytheme+
-    ylab("Proportion of Biomass")+
-    xlab("Time since experiment")+
-    theme(legend.title = element_blank())+
-    theme(legend.key.size = unit(0.5, "cm"))+scale_fill_viridis_d(option="C", na.value="grey72")+
-    theme(strip.background = element_blank())+theme(strip.text.x = element_text(size = 14, colour = "black"))+
-    scale_y_continuous(breaks=c(0.25,0.50,0.75, 1.00))
-    
-jpeg("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/propfuncgroupboth.jpeg", width = 6, height = 6, units = 'in', res = 600)
-propfunctionalgrouptime
-dev.off()
-
-pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/propfuncgroupboth.pdf", width = 6, height = 6)
-propfunctionalgrouptime
-dev.off()
-
-```
-
-
-```{r - Stats for richness and biomass}
-
-head(plotdatarichnes2)
-
-plotrichness<- plotdatarichnes2 %>% mutate(year2=(as.numeric(as.character(year))-1981))
-
-head(totalbiomassplot)
-
-totalbiomassplot<- totalbiomassplot %>% mutate(year2=(as.numeric(as.character(year))-1981))
-
-##check dep variables for normality##
-
-hist(plotdatarichnes2$Richness_a) ##distribution is skewed##
-
-hist(log(plotdatarichnes2$Richness_a)) #log looks better###
-
-
-hist(totalbiomassplot$totalplotbiomass) ##distribution is a bit skewed##
-
-hist(log(totalbiomassplot$totalplotbiomass)) #log looks better##
-
-
-##build model biomass##
-
-#Formula: mass.lg ~ dur * trt * disk + I(dur^2) * trt * disk + (1 | field) +      (1 | year)## Erik seabloom model##
-
-biomassmodel<-lmer(log(totalbiomassplot$totalplotbiomass)~year2*nadd*disk+(1|field)+(1|year), data=totalbiomassplot2)
-
-biomassmodelquad<-glmer(log(totalbiomassplot$totalplotbiomass)~year2*nadd*disk +I(year2^2)*nadd*disk+(1|year), data=totalbiomassplot2)
-
-AIC(biomassmodel, biomassmodelquad)## quadratic model is a worse fit###
-
-anova(biomassmodel) ##everything is significant####
-
-
-###build model spp richness##
-
-#FFormula: div.lg ~ dur * trt * disk + I(dur^2) * trt * disk + (1 | field) +      (1 | year)## Erik seabloom model##
-
-sprichnessmodel<-lmer(log(plotrichness$Richness_a)~year2*nadd*disk+(1|field)+(1|year), data=plotrichness)
-
-sprichnessmodelquad<-glmer(log(plotrichness$Richness_a)~year2*nadd*disk +I(year2^2)*nadd*disk+(1|year), data=plotrichness)
-
-AIC(sprichnessmodel, sprichnessmodelquad)## quadratic model is a worse fit###
-
-anova(sprichnessmodel) ##NTRT is significant, not disturbance, and interaction####
-
-####values for sp richnesss###
-
-richnessavg<-plotrichness%>% group_by(disk,year, ntrt) %>% dplyr::summarise(avgrich=mean(Richness_a, na.rm=TRUE), sdrichness = sd()) %>% 
-
-
-
-```
+## ADDITIONAL SUPPLEMENTAL FIGURES AND ANALYES ###
 
 
 ```{r - Indicator species analyses}
 
-exp12subset_3<-subset(exp12subset_2,ntrt==9|ntrt==1|ntrt==2|ntrt==4|ntrt==6)
+##start w/ exp12subset_1#
 
-### this data set (exp12subset_3 has fields ABC, E001 and E002 from 1982-2004) ## > 2004 was a change in the fire regime## ONLY the control, low (1), med(3.4), and high (9.5) nutrient treatments) ##
-
-##make nutrient and years factors#
-
-exp12subset_3$ntrt<-as.factor(exp12subset_3$ntrt)
-exp12subset_3$year<-as.factor(exp12subset_3$year)
 
 ###subset to the controls and high N treatments###
 
-exp12subset_4<-subset(exp12subset_3,ntrt==9|ntrt==6)
-
-
+exp12subset_4<-subset(exp12subset_1,ntrt==9|ntrt==6)
 
 
 # Look at first 3 years of experiment
@@ -2507,7 +1977,7 @@ rownames(veglong)<-NULL ##get rid of rownames##
 vegwide <- spread(veglong, species, mass)
 
 vegwideplotdata<-vegwide[,1:13]
-vegwidematrix<-vegwide[,14:177]
+vegwidematrix<-vegwide[,14:224]
 
 
 ###make a column for dist_nitrogen_earymidlate##
@@ -2526,11 +1996,622 @@ vegwideplotdata3$stagentrtdist2 <- factor(vegwideplotdata3$stagentrtdist2, level
 
 ##early mid late ##
 
-#indvalfull = multipatt(vegwidematrix,vegwideplotdata3$stagentrtdist2 , control = how(nperm=99))
-
-#indval = multipatt(vegwidematrix,vegwideplotdata3$stagentrtdist2,restcomb = c(1,2,3,4,5, 6, 7, 8, 9, 10, 11, 12), control = how(nperm=99))## just looks at the individual groups##
+##indicator spp analyses###
 
 indvalmid = multipatt(vegwidematrix,vegwideplotdata3$stagentrtdist2,max.order = 3, control = how(nperm=99))## just looks at the individual groups, twos and threes ##
+
+
+indvalmid[["sign"]] ##RESULTS###
+
+```
+
+
+```{r - SUPPLEMENTAL SPP RICHNESS}
+
+
+##starting with exp12subset_1###
+
+
+###summarize##
+
+###Diversity metrics for plant data###
+ShannonD_a <- diversity(exp12subset_1[,11:222], index = "shannon") ##shannon-weiner index##
+Richness_a <- specnumber(exp12subset_1[,11:222])
+Evenness_a <- ShannonD_a/log(Richness_a)
+
+###combine##
+plotdatarichness<-cbind(exp12subset_1[,1:10], Richness_a)
+
+plotdatarichnes2<- plotdatarichness%>%   mutate(ntrt2=ntrt,expntrtyear= paste(exp, ntrt,year, sep = '_'))
+
+##make year numeric##
+
+plotdatarichnes2$year<-as.numeric(as.character(plotdatarichnes2$year))
+
+##average across treatments##
+
+richnessaverage<-plotdatarichnes2%>% group_by(exp, ntrt, ntrt2, year, expntrtyear) %>% dplyr::summarise(meanrichness=mean(Richness_a, na.rm=TRUE),sdrichness=sd(Richness_a, na.rm=TRUE),serichness=sd(Richness_a, na.rm=TRUE)/sqrt(n()), n=n())
+
+
+
+
+
+##plotting specifications###
+
+richnessaverage$exp<-mapvalues(richnessaverage$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+richnessaverage$exp<- factor(richnessaverage$exp, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+
+richnessaverage_2<- richnessaverage%>% mutate (year2=as.numeric(as.character(year-1981)))
+
+
+richnessaverage_3<-richnessaverage_2 %>% mutate(ntrt2=ntrt)
+
+richnessaverage_3$ntrt2  <- mapvalues(richnessaverage_3$ntrt2, from=c("9", "1", "2", "4","6"), to=c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
+
+richnessaverage_3$ntrt2 <- factor(richnessaverage_3$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
+
+mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title=element_text(size=12))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))+ theme(panel.grid.major = element_line(colour = "gray 85"))+ theme(panel.grid.minor = element_line(colour = "gray 95"))
+
+
+
+
+spprichnesstime<-richnessaverage_3 %>% ggplot(aes(x=year2, y=meanrichness, group=ntrt2, color=ntrt2, fill=ntrt2))+
+    geom_point()+
+    geom_smooth(method="loess")+
+    facet_grid(ntrt2~exp) + 
+    mytheme+
+    ylab("Plot species richness")+
+    xlab("Time since experiment")+
+    mytheme+
+    theme(legend.title = element_blank()) + 
+  theme(legend.position = "none") +
+  theme(strip.text.x = element_text(size = 14, colour = "black"))+
+   scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
+   scale_fill_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
+     theme(strip.background = element_blank())
+
+
+
+
+
+```
+
+
+```{r - SUPPLEMENTAL Biomass over time}
+
+##start with exp12subset_1###
+
+##wide to long form##
+exp12subset_long <- gather(exp12subset_1, species, biomass, 'mass.above.ACHILLEA MILLEFOLIUM(LANULOSA)':'mass.above.VIOLA SP.', factor_key=TRUE)
+
+##remove extra text##
+
+exp12subset_long $species<-str_remove(exp12subset_long$species, "mass.above.")
+
+
+##make a column for exp_ntrt_year##
+
+exp12subset_long_2<-exp12subset_long  %>% mutate( expntrtyear_2= paste(exp,ntrt, year, sep = '_'))
+
+exp12subset_long_3<-exp12subset_long_2 %>% mutate(expntrt= paste(exp,ntrt, sep = '_')) %>% dplyr::select(field, plot, disk,year, ntrt, nadd, expntrtyear_2, expntrt, species, biomass)
+
+##sum all species abundance across plots with the same treatment group and year ###includes zeroes!!!#####
+
+sum_allsp_exp12ABC<-exp12subset_long_3%>% group_by(species, disk,year, ntrt, nadd, expntrtyear_2, expntrt,) %>% dplyr::summarise(sumbiomass=sum(biomass, na.rm=TRUE),n=n())
+
+
+###get rid of years where we don't have all 18 plots###
+
+sum_allsp_exp12ABC_2<-subset(sum_allsp_exp12ABC, n==18)
+
+sum_allsp_df<-as.data.frame(sum_allsp_exp12ABC_2)
+
+
+##this dataframe (sumallsp_df has the abundance of each plant in each treatment group (n = 18) for each year####
+
+##calculating the total biomass##
+
+totalbiomassplot<-exp12subset_long_3%>% group_by(plot,field, disk,year, ntrt, nadd, expntrtyear_2, expntrt,) %>% dplyr::summarise(totalbiomass=sum(biomass, na.rm=TRUE),n=n())
+
+##average across plots##
+
+totalbiomassgroups<-totalbiomassplot%>% group_by(disk,year, ntrt, nadd, expntrtyear_2, expntrt,) %>% dplyr::summarise(totalplotbiomass=mean(totalbiomass, na.rm=TRUE),n=n())
+
+totalbiomassgroups2<-subset(totalbiomassgroups, n==18)
+
+totalbiomassdf<-as.data.frame(totalbiomassgroups2)
+
+totalbiomassdf2<-totalbiomassdf %>% select(expntrtyear_2, totalplotbiomass)
+
+####summary across treatments all years###
+
+biomasssummary<-totalbiomassdf%>% group_by(disk) %>% dplyr::summarise(totalplotbiomass=mean(totalplotbiomass, na.rm=TRUE),n=n())
+
+
+##plot specifications ##
+
+
+totalbiomassdf$disk<-mapvalues(totalbiomassdf$disk, from=c("0", "1"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+totalbiomassdf$disk<- factor(totalbiomassdf$disk, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+
+##
+totalbiomassdf22<-totalbiomassdf %>% mutate(ntrt2=ntrt)
+
+totalbiomassdf22$ntrt2  <- mapvalues(totalbiomassdf22$ntrt2, from=c("9", "1", "2", "4","6"), to=c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
+
+totalbiomassdf22$ntrt2 <- factor(totalbiomassdf22$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
+
+
+totalbiomassdf3<- totalbiomassdf22 %>% mutate(year2=as.numeric(as.character(year))-1981)
+
+##this dataframe (totalbiomass df3, has the total biomass of all 18 plots per treatment group for all  years###)
+
+
+###plotting###
+
+totalbiomass<-totalbiomassdf3 %>% ggplot(aes(x=year2, y=totalplotbiomass, color=ntrt2))+
+    geom_line() + 
+    facet_grid(ntrt2~disk) + 
+    mytheme+
+    ylab(expression(paste("Total aboveground biomass g / m  "^2)))+
+    xlab("Time since experiment")+
+    theme(legend.title = element_blank())+
+    theme(legend.key.size = unit(0.5, "cm"))+scale_fill_viridis_d(option="C", na.value="grey72")+
+    theme(strip.background = element_blank())+theme(strip.text.x = element_text(size = 14, colour = "black"))+
+   scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+ theme(legend.position = "none") 
+    
+
+```
+
+
+```{r - SUPPLEMENTAL Functional groups over time}
+
+##start with the sum_all_sp_df and totabiomassdf2 dataframes ####
+
+## and the original Da (all plot and spp info from CC)
+
+##merge the spp with total plot biomass##
+
+sum_allsp_df_2 <- (merge(sum_allsp_df,totalbiomassdf2, by = 'expntrtyear_2', sort=FALSE, all.x=TRUE))
+
+sum_allsp_df_3<-sum_allsp_df_2 %>% mutate(propbiomass=sumbiomass/totalplotbiomass)
+
+### this data set (sum_allsp_df_3 has the sum of all spp in each year in each dist/ntrt treatmet and the proportion of biomass of that group##
+
+###merge the species info with functional group and other information##
+
+specieslookup<-da %>% distinct(species, .keep_all = TRUE)
+
+specieslookup2<-specieslookup %>% dplyr::select(species,functional.group,duration,lifeform, pathway, origin)
+
+
+mergedfuncgroup <- (merge(specieslookup2,sum_allsp_df_3, by = 'species', sort=FALSE, all.y=TRUE))
+
+mergedfuncgroup_2<-mergedfuncgroup%>% mutate(functional.group2= paste(functional.group, origin, sep = '_'))
+
+####now sum up by functional group + origin ##
+
+sumfunctionalgroup<-mergedfuncgroup_2%>% group_by(disk,year, ntrt, nadd, expntrtyear_2, expntrt,functional.group, totalplotbiomass) %>% dplyr::summarise(sumbiomass=sum(sumbiomass, na.rm=TRUE)) %>% mutate(propbiomass=sumbiomass/totalplotbiomass)
+
+sumfuntionalgroupdf<-as.data.frame(sumfunctionalgroup)
+
+###reordering so that other is last, first grasses, then forbs##
+
+sumfuntionalgroupdf$functional.group<-factor(sumfuntionalgroupdf$functional.group, levels=c("C3", "C4" , "S", "W", "L", "F"))
+
+sumfuntionalgroupdf2<-sumfuntionalgroupdf[complete.cases(sumfuntionalgroupdf), ]
+
+#drop the levels not sampeled
+sumfuntionalgroupdf2$functional.group <- as.factor(as.character(sumfuntionalgroupdf2$functional.group))
+
+
+##plot specifications####
+
+sumfuntionalgroupdf2$disk<-mapvalues(sumfuntionalgroupdf2$disk, from=c("0", "1"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+sumfuntionalgroupdf2$disk<- factor(sumfuntionalgroupdf2$disk, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+
+sumfuntionalgroupdf2<-sumfuntionalgroupdf2 %>% mutate(ntrt2=ntrt)
+
+sumfuntionalgroupdf2$ntrt2  <- mapvalues(sumfuntionalgroupdf2$ntrt2, from=c("9", "1", "2", "4","6"), to=c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
+
+sumfuntionalgroupdf2$ntrt2 <- factor(sumfuntionalgroupdf2$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
+
+
+sumfuntionalgroupdf2$year<-as.numeric(as.character(sumfuntionalgroupdf2$year))
+
+
+sumfuntionalgroupdf3<- sumfuntionalgroupdf2 %>% mutate(year2=year-1981)
+
+
+
+
+mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title=element_text(size=12))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))
+
+
+
+
+
+propfunctionalgrouptime<-sumfuntionalgroupdf3 %>% ggplot(aes(x=year2, y=propbiomass, group=functional.group))+
+    geom_area(position = 'stack', aes(fill=functional.group)) + 
+    facet_grid(ntrt2~disk) + 
+    mytheme+
+    ylab("Proportion of Biomass")+
+    xlab("Time since experiment")+
+    theme(legend.title = element_blank())+
+    theme(legend.key.size = unit(0.5, "cm"))+scale_fill_viridis_d(option="C", na.value="grey72")+
+    theme(strip.background = element_blank())+theme(strip.text.x = element_text(size = 14, colour = "black"))+
+    scale_y_continuous(breaks=c(0.25,0.50,0.75, 1.00))
+    
+
+```
+
+
+
+```{r - species turnover (gains and losses for plots through time)}
+
+##start w/ exp12subset_1##
+
+
+da <- exp12subset_1
+
+#Put data in long format
+da.long <-reshape(da,
+                  v.names="mass",
+                 timevar="species",
+                  idvar=c("field", "exp", "plot", "year", "ntrt", "nadd", "disk"),  
+                  times=grep("mass.above", names(da), value=TRUE),
+                 varying=list(grep("mass.above", names(da), value=TRUE)),
+                  direction="long")
+# Delete prefix from species names
+da.long$species <- with(da.long, gsub("mass.above.","", species))
+
+da.long2<-da.long %>% dplyr::select(field, exp, disk, ntrt, plot, year, species, mass) %>% mutate(expfieldntrtplot= paste(exp,field, ntrt, plot, sep = '_')) 
+
+
+da.long2$year<-as.numeric(as.character(da.long2$year))
+
+
+###apperances and disappearences of spp####
+
+appearancedf<-turnover(df=da.long2, time.var="year", species.var="species", abundance.var="mass", replicate.var="expfieldntrtplot", metric="appearance")
+
+disappearancedf<-turnover(df=da.long2, time.var="year", species.var="species", abundance.var="mass", replicate.var="expfieldntrtplot", metric="disappearance")
+
+
+##combine dataframes####
+
+appearancedf_2<-appearancedf %>% mutate(metric="appearences")
+
+disappearancedf_2<-disappearancedf %>% mutate(metric="disappearences")
+
+colnames(appearancedf_2) <- c("propspecies", "year", "expfieldntrtplot", "metric")
+colnames(disappearancedf_2) <- c("propspecies", "year", "expfieldntrtplot", "metric")
+
+
+bothappeardisappear<-rbind(appearancedf_2,disappearancedf_2)
+
+bothappeardisappear_2<-separate(data = bothappeardisappear, col = expfieldntrtplot, into = c("exp", "field", "ntrt", "plot"))
+
+
+#####summarize by ntrt and disturbance treatments###
+
+speciesturnover<-bothappeardisappear_2%>% group_by(year, exp, ntrt, metric) %>% dplyr::summarise(meanprop=mean(propspecies, na.rm=TRUE),sdprop=sd(propspecies, na.rm=TRUE),sepropspecies=sd(propspecies, na.rm=TRUE)/sqrt(n()), n=n())
+
+###subset###
+
+speciesturnover_2<-speciesturnover%>% mutate(ntrt2=ntrt)%>% mutate(exp2=exp) %>%  mutate (year2=as.numeric(as.character(year-1981)))
+
+
+sppappearences<-subset(speciesturnover_2, metric=="appearences")
+sppdisappearences<-subset(speciesturnover_2, metric=="disappearences")
+
+
+
+##plot specifications###
+
+mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title=element_text(size=12))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))+ theme(panel.grid.major = element_line(colour = "gray 85"))+ theme(panel.grid.minor = element_line(colour = "gray 95"))
+
+
+
+
+speciesturnover_2$ntrt2  <- mapvalues(speciesturnover_2$ntrt2, from=c("9", "1", "2", "4","6"),
+                               to=c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
+speciesturnover_2$ntrt2 <- factor(speciesturnover_2$ntrt2, levels = c("None", "0 N+micro", "1 N + micro",  "3.4 N + micro","9 N + micro"))
+
+
+speciesturnover_2$exp2<-mapvalues(speciesturnover_2$exp2, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+speciesturnover_2$exp2 <- factor(speciesturnover_2$exp2, levels =c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+
+sppappearencesplot<-sppappearences %>% ggplot(aes(x=year2, y=meanprop, color=ntrt2, fill=ntrt2))+
+    geom_point()+
+    geom_errorbar(aes(ymin=meanprop-sepropspecies, ymax=meanprop+sepropspecies), size=0.5)+
+    geom_smooth(method="loess")+
+    facet_grid(ntrt2~exp2) + 
+    mytheme+
+    ylab("Proportion of new species appearances")+
+    xlab("Time since experiment")+
+    mytheme+
+    theme(legend.title = element_blank())+
+    theme(legend.position = "none") +
+  theme(strip.text.x = element_text(size = 14, colour = "black"))+
+   scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
+   scale_fill_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
+     theme(strip.background = element_blank())
+
+
+
+sppdisappearencesplot<-sppdisappearences %>% ggplot(aes(x=year2, y=meanprop, color=ntrt2, fill=ntrt2))+
+    geom_point()+
+    geom_errorbar(aes(ymin=meanprop-sepropspecies, ymax=meanprop+sepropspecies), size=0.5)+
+    geom_smooth(method="loess")+
+    facet_grid(ntrt2~exp2) + 
+    mytheme+
+    ylab("Proportion of species disappearences")+
+    xlab("Time since experiment")+
+    ylim(0,0.6)+
+    mytheme+
+    theme(legend.title = element_blank())+
+    theme(legend.position = "none") +
+  theme(strip.text.x = element_text(size = 14, colour = "black"))+
+   scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
+   scale_fill_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
+     theme(strip.background = element_blank())
+
+
+```
+
+
+###What I GOT UP TO 4/14/22###
+
+
+
+
+```{r - pCOA species last few years}
+
+
+exp12subset_2004<-subset(exp12subset_1, year==2004)
+
+
+##just the veg data##
+
+veg2004<-exp12subset_2004%>% dplyr::select(`mass.above.ACHILLEA MILLEFOLIUM(LANULOSA)`:`mass.above.VIOLA SP.`)
+
+#remove columns with all 0s##
+
+veg2004_2 = veg2004[,colSums(veg2004) > 0]
+
+##just the plot data##
+plot2004<-exp12subset_2004%>% dplyr::select('field':'ntrt2')%>% mutate(expntrt= paste(exp,ntrt,sep = '_')) 
+
+## Bray curtis dissimiliarty matrix##
+dist2004<-vegdist(veg2004_2, method="bray")
+
+##PCOA####
+PCOA2004<-pcoa(dist2004)
+
+##plot the ord##
+
+pcoa1<-plot(PCOA2004)
+
+
+## extracting the axis scores##
+
+PCOA2004 <- PCOA2004$vectors[,c(1,2)]
+
+
+##merge the axis scores with the plot data ###
+
+PCOAandplots2004<-cbind(plot2004,PCOA2004)
+
+
+###pulling out the group centroids ####
+
+
+bd_2004<-betadisper(vegdist(veg2004_2),plot2004$expntrt, type = "centroid")    ####Note that you have to specify the centroid ##  ##takes a bit##
+
+
+centroiddf2004<-as.data.frame(bd_2004[["centroids"]])
+
+centroiddf2004_2<-centroiddf2004[,1:2]
+
+centroiddf2004_2<- tibble::rownames_to_column(centroiddf2004_2, "expntrt")
+
+centroiddf2004_2<-separate(data = centroiddf2004_2, col = expntrt, into = c("exp", "ntrt"))
+
+
+
+
+##plotting specifications#####
+
+
+PCOAandplots2004<-PCOAandplots2004%>% mutate(ntrt2=ntrt)%>% mutate(exp2=exp)
+
+PCOAandplots2004$ntrt2  <- mapvalues(PCOAandplots2004$ntrt2, from=c("9", "1", "2", "4","6"),
+                               to=c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
+PCOAandplots2004$ntrt2 <- factor(PCOAandplots2004$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
+
+
+PCOAandplots2004$exp2<-mapvalues(PCOAandplots2004$exp2, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+PCOAandplots2004$exp2 <- factor(PCOAandplots2004$exp2, levels =c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+####
+centroiddf2004_2<-centroiddf2004_2%>% mutate(ntrt2=ntrt)%>% mutate(exp2=exp)
+
+centroiddf2004_2$ntrt2  <- mapvalues(centroiddf2004_2$ntrt2, from=c("9", "1", "2", "4","6"),
+                               to=c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
+centroiddf2004_2$ntrt2 <- factor(centroiddf2004_2$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
+
+
+centroiddf2004_2$exp2<-mapvalues(centroiddf2004_2$exp2, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+centroiddf2004_2$exp2 <- factor(centroiddf2004_2$exp2, levels =c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+
+mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title=element_text(size=12))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))
+
+
+
+
+####
+
+PCOA2004plot <- ggplot() + 
+    xlab("PCOA 1") +
+    ylab("PCOA 2") +  
+    geom_point(data=PCOAandplots2004, 
+               aes(x=Axis.1, y=Axis.2, colour=ntrt2, shape=exp2), 
+               size=1)+
+        geom_point(data=centroiddf2004_2, 
+               aes(x=PCoA1, y=PCoA2, colour=ntrt2, shape=exp2), 
+               size=4)+
+  scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
+  scale_fill_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+ 
+   mytheme+
+    theme(strip.text.x = element_text(size = 14, colour = "black"))+
+    theme(strip.text.y = element_text(size = 14, colour = "black"))+
+    theme(legend.position = c(0.5, 0.15),
+          legend.spacing.x = unit(0.03, 'cm'))+
+    theme(legend.text = element_text(size=6))+
+    theme(legend.key.size = unit(0.4, 'cm'))
+
+
+```
+
+
+
+```{r - NMDS species last few years}
+
+
+exp12subset_2004<-subset(exp12subset_1, year==2004)
+
+
+##just the veg data##
+
+veg2004<-exp12subset_2004%>% dplyr::select(`mass.above.ACHILLEA MILLEFOLIUM(LANULOSA)`:`mass.above.VIOLA SP.`)
+
+#remove columns with all 0s##
+
+veg2004_2 = veg2004[,colSums(veg2004) > 0]
+
+##just the plot data##
+plot2004<-exp12subset_2004%>% dplyr::select('field':'ntrt2')%>% mutate(expntrt= paste(exp,ntrt,sep = '_')) 
+
+## Bray curtis dissimiliarty matrix##
+dist2004<-vegdist(veg2004_2, method="bray")
+
+
+
+###NMDS###
+
+NMDS1<-metaMDS(dist2004, k = 3, trymax = 10000)
+
+##extract the spp scores##
+
+en = envfit(NMDS1, veg2004_2, permutations = 999, na.rm = TRUE)
+
+endf <- data.frame((en$vectors)$arrows, (en$vectors)$r, (en$vectors)$pvals)
+
+endf <- tibble::rownames_to_column(endf , "species")
+
+colnames(endf ) <- c("species", "NMDS1", "NMDS2", "r2", "pval")
+
+endf$species<-str_remove(endf$species, "mass.above.")
+
+
+##select out certain spp only####
+
+endfmain<-endf %>% filter(r2 > 0.2)
+
+species2<-c("Agro.rep", "Ambro.cor", "Carex", "Euph.cor", "Lath.ven", "Poa.pra", "Schiz.scop", "Sorg.nut")
+
+enddfmain2<-cbind(endfmain, species2)
+
+## extracting the axis scores##
+
+NMDSscores<-NMDS1$points
+
+##merge the axis scores with the plot data ###
+
+NMDSandplots2004<-cbind(plot2004,NMDSscores)
+
+
+###AVERAGE BY EXP_NTRT####
+
+NMDSavg<-NMDSandplots2004 %>% group_by(exp, ntrt) %>% dplyr::summarise(meanAxis1=mean(MDS1, na.rm=TRUE),sdAxis1=sd(MDS1, na.rm=TRUE),seAxis1=sd(MDS1, na.rm=TRUE)/sqrt(n()),meanAxis2=mean(MDS2, na.rm=TRUE),sdAxis2=sd(MDS2, na.rm=TRUE),seAxis2=sd(MDS2, na.rm=TRUE)/sqrt(n()), n=n())
+
+
+
+##plotting specifications#####
+
+
+NMDSandplots2004_2<-NMDSandplots2004%>% mutate(ntrt2=ntrt)%>% mutate(exp2=exp)
+
+NMDSandplots2004_2$ntrt2  <- mapvalues(NMDSandplots2004_2$ntrt2, from=c("9", "1", "2", "4","6"),
+                               to=c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
+NMDSandplots2004_2$ntrt2 <- factor(NMDSandplots2004_2$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
+
+
+NMDSandplots2004_2$exp2<-mapvalues(NMDSandplots2004_2$exp2, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+NMDSandplots2004_2$exp2 <- factor(NMDSandplots2004_2$exp2, levels =c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+##plotting specifications#####
+
+
+NMDSavg_2<-NMDSavg%>% mutate(ntrt2=ntrt)%>% mutate(exp2=exp)
+
+NMDSavg_2$ntrt2  <- mapvalues(NMDSavg_2$ntrt2, from=c("9", "1", "2", "4","6"),
+                               to=c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
+NMDSavg_2$ntrt2 <- factor(NMDSavg_2$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
+
+
+NMDSavg_2$exp2<-mapvalues(NMDSavg_2$exp2, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+NMDSavg_2$exp2 <- factor(NMDSavg_2$exp2, levels =c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+####
+
+####
+
+
+mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title=element_text(size=12))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))
+
+
+
+
+####
+
+NMDS2004plot <- ggplot() + 
+    xlab("NMDS 1") +
+    ylab("NMDS 2") +  xlim(-0.5, 0.5)+ylim(-0.6, 0.3)+
+    geom_point(data=NMDSandplots2004_2, 
+               aes(x=MDS1, y=MDS2, colour=ntrt2, shape=exp2), 
+               size=1)+
+  geom_point(data=NMDSavg_2, 
+               aes(x=meanAxis1, y=meanAxis2, colour=ntrt2, shape=exp2), 
+               size=4)+
+  geom_segment(data = endfmain,
+               aes(x = 0, xend = NMDS1/2, y = 0, yend = NMDS2/2),
+               arrow = arrow(length = unit(0.25, "cm")), colour = "grey") +
+  geom_text(data = endfmain, aes(x = NMDS1/2, y = NMDS2/2, label = species2),
+            size = 3, position=position_jitter(width=0.05,height=0.05))+
+          scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
+  scale_fill_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+ 
+   mytheme+
+    theme(strip.text.x = element_text(size = 14, colour = "black"))+
+    theme(strip.text.y = element_text(size = 14, colour = "black"))+
+    theme(legend.position = c(0.85, 0.17),
+          legend.spacing.x = unit(0.03, 'cm'))+
+    theme(legend.text = element_text(size=6))+
+    theme(legend.key.size = unit(0.4, 'cm'))
 
 
 ```
