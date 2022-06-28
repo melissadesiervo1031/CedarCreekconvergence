@@ -695,8 +695,6 @@ PcoAfieldAveragedE001E002<-ggplot(PCOAandplotsavg3[order(PCOAandplotsavg3$year),
 
 
 
-
-
 ```{r - recreate FIG 4 cd, PCoA by decade (log data)}
 
 
@@ -824,16 +822,27 @@ PcOAdecade<-ggplot(data=PcoAplayingfirst2, aes(x=meanAxis1  , y=meanAxis2 , colo
 
 #######################
 
-head(exp12subset_2)
-dim(exp12subset_2)  ##data frame with everything, minus the years where not everything was sampeled## biomass data are log transformed####
+####for this analysis, getting rid of the years where not every field was sampeled##
+
+exp12subset_2<-exp12subset_1%>%filter(year!=1995)%>%filter(year!=1998)%>%filter(year!=2001)%>%filter(year!=2003)
+
+##just the veg data##
+
+veg<-exp12subset_2%>% dplyr::select(`mass.above.ACHILLEA MILLEFOLIUM(LANULOSA)`:`mass.above.VIOLA SP.`)
 
 
-##add on a column for exp ntrt year  without field###
+
+###log transformation####
+
+vegmatrix<-as.matrix(veg)
+
+logveg<-log(1+vegmatrix)
+
 
 
 ##using the apply function to calculation the dispersion (beta disp) for each nutrient treatment for each year#
 
-bd_allboth<-betadisper(vegdist(exp12subset_2[12:222]),exp12subset_2$expntrtyear, type = "centroid")    ####Note that you have to specify the centroid ##  ##takes a bit##
+bd_allboth<-betadisper(vegdist(logveg),exp12subset_2$expntrtyear, type = "centroid")    ####Note that you have to specify the centroid ##  ##takes a bit##
 
 ##some squared distances are negative and changed to zero##
 
@@ -928,81 +937,15 @@ E001distntrt4<-subset(groupdistancesboth2_df, ntrt==4 & exp==1)
 E001distntrt6<-subset(groupdistancesboth2_df, ntrt==6 & exp==1)
 
 
-####Nonlinear model fits##
-####these are weird (only for E001)...have to specify lrc and then it works...##
+####Nonlinear model fits E001##
 
-x=controlE001$year2
-y=controlE001$distances
+controlE001fit<- nls(distances~ SSasymp(year2, Asym, R0, lrc), data = controlE001)
+E001distntrt1fit<- nls(distances~ SSasymp(year2, Asym, R0, lrc), data = E001distntrt1)
+E001distntrt2fit<- nls(distances~ SSasymp(year2, Asym, R0, lrc), data = E001distntrt2)
+E001distntrt4fit<- nls(distances~ SSasymp(year2, Asym, R0, lrc), data = E001distntrt4)
+E001distntrt6fit<- nls(distances~ SSasymp(year2, Asym, R0, lrc), data = E001distntrt6) ##doesn't work...see below###
 
-##first, specify the fit##
-asympfunc <- function(x, Asym, R0, lrc=-1.8126)
-    Asym + (R0 - Asym) * exp(-exp(lrc) * x)
-
-nls(y ~ asympfunc(x, Asym, R0),
-    data = data.frame(x, y),
-    start = list(Asym = 0.3,R0=0.5))
-
-
-controlE001fit<-nls(y ~ asympfunc(x, Asym, R0),
-    data = data.frame(x, y),
-    start = as.list(coef(controlE002fit)[c(1, 2)]))
-
-
-
-x1=E001distntrt1$year2
-y1=E001distntrt1$distances
-
-##first, specify the fit##
-asympfunc <- function(x1, Asym, R0, lrc=coef(E002distntrt1fit)[3])
-    Asym + (R0 - Asym) * exp(-exp(lrc) * x)
-nls(y1 ~ asympfunc(x1, Asym, R0),
-    data = data.frame(x, y),
-    start = list(Asym = 0.3,R0=0.5))
-
-
-E001distntrt1fit<-nls(y ~ asympfunc(x1, Asym, R0),
-    data = data.frame(x1, y1),
-    start = as.list(coef(E002distntrt1fit)[c(1, 2)]))
-
-###
-
-
-x2=E001distntrt2$year2
-y2=E001distntrt2$distances
-
-##first, specify the fit##
-asympfunc <- function(x2, Asym, R0, lrc=coef(E002distntrt2fit)[3])
-    Asym + (R0 - Asym) * exp(-exp(lrc) * x)
-nls(y2 ~ asympfunc(x2, Asym, R0),
-    data = data.frame(x2, y2),
-    start = list(Asym = 0.3,R0=0.5))
-
-
-E001distntrt2fit<-nls(y ~ asympfunc(x2, Asym, R0),
-    data = data.frame(x2, y2),
-    start = as.list(coef(E002distntrt2fit)[c(1, 2)]))
-
-###
-
-
-x4=E002distntrt4$year2
-y4=E002distntrt4$distances
-
-##first, specify the fit##
-asympfunc <- function(x4, Asym, R0, lrc=coef(E002distntrt4fit)[3])
-    Asym + (R0 - Asym) * exp(-exp(lrc) * x)
-nls(y4 ~ asympfunc(x4, Asym, R0),
-    data = data.frame(x4, y4),
-    start = list(Asym = 0.3,R0=0.5))
-
-
-E001distntrt4fit<-nls(y ~ asympfunc(x4, Asym, R0),
-    data = data.frame(x4, y4),
-    start = as.list(coef(E002distntrt4fit)[c(1, 2)]))
-
-###
-
-
+####this (ntrt6) is weird (have to specify lrc and then it works...##
 
 x6=E001distntrt6$year2
 y6=E001distntrt6$distances
@@ -1279,7 +1222,7 @@ distbetweencentroids<-ggplot(data=centroiddists_3,aes(x=as.numeric(as.character(
     theme(legend.position="none")+
      theme(strip.text = element_blank())+
      theme(strip.background = element_blank())+
-     geom_text(aes(x = 1.5, y = 0.25, label = abclabel, group =     abclabel),size = 4,check_overlap = T)
+     geom_text(aes(x = 1.5, y = 0.18, label = abclabel, group =     abclabel),size = 4,check_overlap = T)
   
 
 
@@ -1331,6 +1274,15 @@ g11 <- ggplotGrob(disttocentroidplot_2)
 g22 <- ggplotGrob(distbetweencentroids)
 
 grid.arrange(g11, g22 , ncol = 1, heights = c(1, 1))
+
+
+jpeg("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/Dist recovery MS/Figures_overleaf/logfigures/distwithinbtwn4panel.jpeg", width = 6, height = 6, units = 'in', res = 600)
+grid.arrange(g11, g22 , ncol = 1, heights = c(1,1))
+dev.off()
+
+pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/Dist recovery MS/Figures_overleaf/logfigures/distwithinbtwn4panel.pdf", width = 6, height = 6)
+grid.arrange(g11, g22 , ncol = 1, heights = c(1, 1))
+dev.off()
 
 
 ```
@@ -1900,12 +1852,30 @@ indvalmid[["sign"]] ##RESULTS###
 
 ##start w/ exp12subset_2#
 
-head(exp12subset_2) ##log transformed values###
+##just the plot data##
+plot<-exp12subset_1_sorted%>% dplyr::select('field':'ntrt2')
+
+##just the veg data##
+
+veg<-exp12subset_1_sorted%>% dplyr::select(`mass.above.ACHILLEA MILLEFOLIUM(LANULOSA)`:`mass.above.VIOLA SP.`)
+
+###log transformation####
+
+vegmatrix<-as.matrix(veg)
+
+logveg<-log(1+vegmatrix)
+
+##merge back together###
+
+exp12subset_3<-data.frame(plot, logveg)
+
+
+head(exp12subset_3) ##log transformed values###
 
 
 ###subset to the controls and high N treatments###
 
-exp12subset_4<-subset(exp12subset_2,ntrt==9|ntrt==6)
+exp12subset_4<-subset(exp12subset_3,ntrt==9|ntrt==6)
 
 
 # Look at first 3 years of experiment and last 3 years of experiment
@@ -1959,7 +1929,7 @@ vegwideplotdata2<-vegwide2[,1:13]
 vegwidematrix2<-vegwide2[,14:224]
 
 
-###make a column for dist_nitrogen_earymidlate##
+###make a column for dist_nitrogen_earylate##
 
 vegwideplotdata22<-vegwideplotdata2 %>% mutate(stagentrtdist= paste(stage, ntrt, exp, sep = '_'))
 
@@ -1971,7 +1941,7 @@ vegwideplotdata33<-vegwideplotdata22 %>% mutate(stagentrtdist2= as.numeric(stage
 
 vegwideplotdata33$stagentrtdist2<-as.factor(vegwideplotdata33$stagentrtdist2)
 
-vegwideplotdata3$stagentrtdist2 <- factor(vegwideplotdata3$stagentrtdist2, levels = c("1", "2", "3", "4", "5", "6", "7", "8"))
+vegwideplotdata33$stagentrtdist2 <- factor(vegwideplotdata33$stagentrtdist2, levels = c("1", "2", "3", "4", "5", "6", "7", "8"))
 
 ##early  late ##
 
@@ -1980,7 +1950,7 @@ vegwideplotdata3$stagentrtdist2 <- factor(vegwideplotdata3$stagentrtdist2, level
 indvalearlylate = multipatt(vegwidematrix2,vegwideplotdata33$stagentrtdist2,max.order = 3, control = how(nperm=99))## just looks at the individual groups, and twos  ##
 
 
-indvalearlylate[["sign"]] ##RESULTS###
+indval<-data.frame(indvalearlylate[["sign"]]) ##RESULTS###
 
 ```
 
