@@ -30,6 +30,10 @@ library(codyn)
 library(indicspecies)
 library(BiodiversityR)
 
+source(here("code/1_functions.r"))
+source(here("code/2_upload_format_data.r"))
+
+
 ############   CONDUCT PCOA (using all the veg data across years) ##############
 
 #make nutrient and years factors#

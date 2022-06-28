@@ -28,6 +28,13 @@ library(codyn)
 library(indicspecies)
 library(BiodiversityR)
 
+source(here("code/1_functions.r"))
+source(here("code/2_upload_format_data.r"))
+source(here("code/3_PCoA_Permanova.r"))
+source(here("code/4_centroids.r"))
+source(here("code/5_sinuosity.r"))
+source(here("code/6_trajdist.r"))
+source(here("code/7_Indicatorspp.r"))
 
 #### CALCULATE BIOMASS OVER TIME SERIES ####
 

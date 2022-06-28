@@ -32,6 +32,8 @@ library(BiodiversityR)
 
 ############
 
+source(here("code/1_functions.r"))
+
 
 # Reading in and cleaning Cedar Creek data###
 
