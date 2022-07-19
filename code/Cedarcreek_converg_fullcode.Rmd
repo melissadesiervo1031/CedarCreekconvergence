@@ -666,17 +666,18 @@ ann_textntrt <- data.frame(meanAxis1 = c(0.45, 0.45, 0.45, 0.45, 0.45), meanAxis
 
 
 
-
 PcoAfieldAveragedE001E002<-ggplot(PCOAandplotsavg3[order(PCOAandplotsavg3$year),], aes(x=meanAxis1  , y=meanAxis2 , group=exp_ntrt, color=year, label=year)) +
-    geom_point(size=1) +
-    geom_errorbar(aes(ymin=meanAxis2-seAxis2, ymax=meanAxis2+seAxis2), color="gray", size=0.25) +
-    geom_errorbarh(aes(xmin=meanAxis1-seAxis1, xmax=meanAxis1+seAxis1), color="gray", size=0.25) +
+    geom_point(size=0.75) +
+    geom_errorbar(aes(ymin=meanAxis2-seAxis2, ymax=meanAxis2+seAxis2), color="dark gray", size=0.25) +
+    geom_errorbarh(aes(xmin=meanAxis1-seAxis1, xmax=meanAxis1+seAxis1), color="dark gray", size=0.25) +
     geom_path(aes(x=meanAxis1 , y=meanAxis2 , group=exp_ntrt, color=year),size=0.5)+
-    geom_point(size=1) +
+    geom_point(size=0.75) +
+    xlim(c(min(PCOAandplotsavg3$meanAxis1-PCOAandplotsavg3$seAxis1)),max(PCOAandplotsavg3$meanAxis1+PCOAandplotsavg3$seAxis1))+
+    ylim(c(min(PCOAandplotsavg3$meanAxis2-PCOAandplotsavg3$seAxis2)),max(PCOAandplotsavg3$meanAxis2+PCOAandplotsavg3$seAxis2))+
     ylab("PCoA 2")+
     xlab("PCoA 1")+
     facet_grid(ntrt2~disk) + 
-    geom_text(aes(label=yearlabel),position = position_nudge(y = -0.04, x=-0.04), color="black", size=2.5)+
+    #geom_text(aes(label=yearlabel),position=position_jitter(width=0.05,height=0.05), color="black", size=2.5)+
     mytheme+
     scale_color_viridis(option = "D")+
     scale_fill_viridis(option = "D",trans = 'reverse')+
@@ -684,11 +685,12 @@ PcoAfieldAveragedE001E002<-ggplot(PCOAandplotsavg3[order(PCOAandplotsavg3$year),
     color = guide_colorbar(reverse = TRUE),
     #reverse size order (higher diameter on top) 
     size = guide_legend(reverse = TRUE))+
-   scale_y_continuous(breaks=c(-0.2, 0.0, 0.2, 0.4))+
-    geom_text(aes(x = -0.37, y = 0.25, label = abclabel, group =     abclabel),size = 3,check_overlap = T)+
+   #scale_y_continuous(breaks=c(-0.2, 0.0, 0.2, 0.4))+
+    geom_text(aes(x = -0.26, y = 0.16, label = abclabel, group =     abclabel),size = 3,check_overlap = T)+
     theme(strip.background = element_blank())+
     theme(strip.text = element_text(face="bold", size=10))+
     theme(panel.spacing.y=unit(0.5, "lines"))
+    #geom_text_repel(aes(label=yearlabel),size = 2.5, color="black")
 
 
 ```
