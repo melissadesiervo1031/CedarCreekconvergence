@@ -404,7 +404,7 @@ da_full$origin[sel] <- "NATIVE"
 da_full$species <- toupper(as.character(da_full$species))
 
 ##deal with some entries where sp. were weighed twice##
-summary(freq <- ddply(da_full[da_full$live==1 & da_full$sorted==1, ], .(year, field, exp, plot, subplot, disk, ntrt, nadd, species), colwise(length, .(mass.above)))) ##takes a while##
+summary(freq <- ddply(da_full[da_full$live==1 & da_full$sorted==1, ], .(year, field, exp, plot, subplot, disk, ntrt, species), colwise(length, .(mass.above)))) ##takes a while##
 
 freq$freq <- freq$mass.above
 
@@ -422,10 +422,10 @@ doubles.df[c("field", "exp","plot", "year", "species", "mass.above")]
 ##takes a while##
 
 # subset to live, sorted, herbaceous plants
-d2 <- da_full[da_full$sorted ==1 & da_full$live ==1 & da_full$wood==0, c("field", "exp","plot", "subplot", "year", "disk", "ntrt", "nadd", "species", "mass.above")]
+d2 <- da_full[da_full$sorted ==1 & da_full$live ==1 & da_full$wood==0, c("field", "exp","plot", "subplot", "year", "disk", "ntrt",  "species", "mass.above")]
 
 #subset that includes woody stuff####
-d2woody <- da_full[da_full$sorted ==1 & da_full$live ==1, c("field", "exp","plot", "subplot", "year", "disk", "ntrt", "nadd", "species", "mass.above")]
+d2woody <- da_full[da_full$sorted ==1 & da_full$live ==1, c("field", "exp","plot", "subplot", "year", "disk", "ntrt", "species", "mass.above")]
 
 
 #Add some columns for herbaceous version####
@@ -442,7 +442,7 @@ d3woody<-d2woody %>% mutate(expntrtfieldyear= paste(exp,field, ntrt, year, sep =
 # Transpose herbaceous and woody data to be a site by species matrix
 da.widewoody <- reshape(d3woody,
                    v.names="mass.above",
-                   idvar=c("field", "exp","plot", "subplot", "year", "disk", "ntrt", "nadd", "expntrtyear"),
+                   idvar=c("field", "exp","plot", "subplot", "year", "disk", "ntrt", "expntrtyear"),
                    timevar="species",
                    direction="wide") 
 # Fill in NA's with zeros in wide data set
@@ -458,7 +458,6 @@ da.widewoody$year<-as.factor(da.widewoody$year)
 ##make only the biomasses the numeric variables##
 da.widewoody$exp<-as.factor(da.widewoody$exp)
 da.widewoody$disk<-as.factor(da.widewoody$disk)
-da.widewoody$nadd<-as.factor(as.character(da.widewoody$nadd))
 
 
 #subset out the east/ west subplots plots and the whole plots ##
@@ -468,7 +467,7 @@ da.widewhole<-subset(da.widewoody, subplot=="Whole", row.names=NULL)
 
 ##Add the values from the subplots together##
 
-EWaddall<-as.data.frame(da.wideeastwest%>%group_by(field,exp,plot,year,disk,ntrt,nadd,expntrtyear, expntrtfieldyear, ntrt2) %>% summarise_if(is.numeric,sum)%>% mutate(subplot="Whole"))
+EWaddall<-as.data.frame(da.wideeastwest%>%group_by(field,exp,plot,year,disk,ntrt,expntrtyear, expntrtfieldyear, ntrt2) %>% summarise_if(is.numeric,sum)%>% mutate(subplot="Whole"))
 
 
 ###merge the whole plots back together###
@@ -620,161 +619,6 @@ da_fieldD_wide <- reshape(da_fieldD_3,
 
 # Fill in NA's with zeros in wide data set
 da_fieldD_wide[is.na(da_fieldD_wide)] <- 0
-
-
-
-
-
-```
-
-
-
-###PCOA across years w/ field D ###
-
-```{r - Conduct a PCoA just controls plots over time (log)}
-
-head(da_fieldD_3 ) #long form field D##
-head(d3woody)  ##long form fields ABC##
-
-
-d3controls<-d3woody %>% filter(ntrt==9) %>% select(field, exp, plot, year, species, mass.above)
-
-da_fieldD_3$exp<-1
-
-da_fieldD_3<-da_fieldD_3 %>% select(field, exp, plot, year, species, mass.above)
-
-fieldABCD<-rbind(da_fieldD_3, d3controls)
-
-# Transpose data to be a site by species matrix
-fieldABCD_wide <- reshape(fieldABCD,
-                   v.names="mass.above",
-                   idvar=c("field", "plot", "year"),
-                   timevar="species",
-                   direction="wide") 
-
-
-fieldABCD_wide_sorted<-fieldABCD_wide%>%arrange(year)%>%arrange(plot)%>%arrange(field)%>%arrange(exp)
-
-##subset to fewer years###
-
-fieldABCD_wide_subset<-subset(fieldABCD_wide_sorted, year==1982|year==1992|year==2004|year==2019)
-
-
-##just the plot data field ABCD##
-plotABCD<-fieldABCD_wide_sorted%>% dplyr::select(field, exp, plot, year)
-
-plotABCDsubset<-fieldABCD_wide_subset%>% dplyr::select(field, exp, plot, year)
-
-
-
-##just the veg data##
-
-vegABCD<-fieldABCD_wide_sorted[5:225]
-
-vegABCDsubset<-fieldABCD_wide_subset[5:225]
-
-# Fill in NA's with zeros in wide data set
-vegABCD[is.na(vegABCD)] <- 0
-
-vegABCDsubset[is.na(vegABCDsubset)] <- 0
-
-
-vegmatrixABCD<-as.matrix(vegABCD)
-
-vegmatrixABCDsubset<-as.matrix(vegABCDsubset)
-
-logvegABCD<-log(1+vegmatrixABCD)
-
-logvegABCDsubset<-log(1+vegmatrixABCDsubset)
-
-## Bray curtis dissimiliarty matrix##
-distABCD<-vegdist(logvegABCD, method="bray")
-BCdistABCD<-as.matrix(distABCD)  ##into a matrix#
-BCdistABCDdf<-as.data.frame(BCdistABCD)  #into a dataframe#
-
-BCdistABCDdf2<-cbind(plotABCD,BCdistABCDdf) #merge plot data w/ dissim matrix##
-
-
-
-distABCDsubset<-vegdist(logvegABCDsubset, method="bray")
-BCdistABCDsubset<-as.matrix(distABCDsubset)  ##into a matrix#
-BCdistABCDdfsubset<-as.data.frame(BCdistABCDsubset)  #into a dataframe#
-
-BCdistABCDdf2subset<-cbind(plotABCDsubset,BCdistABCDdfsubset) #merge plot data w/ dissim matrix##
-
-
-
-##BCdistABCD2 has the plot info and the BC dissimilarity matrix for all the control plots from E001 and E002 ABC and field D ######
-
-###PcOA fields ABCD####
-
-PCOA_ABCD <- pcoa(BCdistABCD)  ## takes a while##
-
-
-###NMDS ABCD subset###
-
-NMDS_ABCD <- metaMDS(BCdistABCDsubset, trymax = 100)
-
-## extracting the axis scores for each exp##
-
-PCOAaxes_ABCD<- PCOA_ABCD$vectors[,c(1,2)]
-
-NMDSscores_ABCD<-as.data.frame(NMDS_ABCD$points)
-
-##merge the PCOA axis scores with the plot data ###
-
-PCOAABCDandplotsboth<-cbind(plotABCD,PCOAaxes_ABCD )
-
-PCOAABCDandplotsboth$exp<-as.factor(PCOAABCDandplotsboth$exp)
-##PCOAABCD has the plot info and the PCOA scores for all the control plots from E001 and E002 ABC and field D###
-
-
-##merge the NMDS scores###
-
-NMDSscoresandplots<-cbind(plotABCDsubset, NMDSscores_ABCD)
-
-###
-####subset to three years to see time series###
-
-PCOAABCDandplotsboth_subset<-subset(PCOAABCDandplotsboth, year==1982|year==1992|year==2004)
-
-####Plotting PCOA###
-
-
-PcoA_ABCD<-ggplot(PCOAABCDandplotsboth, aes(x=Axis.1  , y=Axis.2 , shape=exp, color=field)) + geom_point(size=2) +facet_wrap(~year)
-
-
-PcoA_ABCDsubset<-ggplot(PCOAABCDandplotsboth_subset, aes(x=Axis.1  , y=Axis.2 , shape=exp, color=field)) + geom_point(size=2) +facet_wrap(~year)
-
-
-NMDS_ABCD_subset<-ggplot(NMDSscoresandplots, aes(x=MDS1  , y=MDS2 , shape=as.factor(NMDSscoresandplots$exp), color=field)) + geom_point(size=2) +facet_wrap(~year)
-
-### species fit##
-
-spp.fit <- envfit(NMDS_ABCD, logvegABCDsubset, permutations = 999)
-
-spp.scrs <- as.data.frame(scores(spp.fit , display = "vectors"))
-
-spp.scrs <- cbind(spp.scrs, Species = rownames(spp.scrs))
-
-spp.scrs <- cbind(spp.scrs, pval = spp.fit$vectors$pvals)
-
-sig.spp.scrs <- subset(spp.scrs, pval<=0.001)
-
-sig.sppdf<-as.data.frame(sig.spp.scrs)
-
-sig.sppdf$Species<-str_remove(sig.sppdf$Species, "mass.above.")
-
-
-####
-
-##species plot###
-
-NMDS_ABCD_species<-ggplot(sig.sppdf)+
-  geom_segment(data = sig.sppdf, aes(x = 0, xend=NMDS1, y=0, yend=NMDS2), arrow = arrow(length = unit(0.25, "cm")), colour = "grey10", lwd=0.3) + #add vector arrows of significant species
-  ggrepel::geom_text_repel(data = sig.sppdf, aes(x=NMDS1, y=NMDS2, label = Species), cex = 3, direction = "both", segment.size = 0.25)+ #add labels for species, use ggrepel::geom_text_repel so that labels do not overlap
-  labs(title = "Ordination with species vectors")
-
 
 
 
@@ -1169,6 +1013,164 @@ PcOAdecade<-ggplot(data=PcoAplayingfirst2, aes(x=meanAxis1  , y=meanAxis2 , colo
 
 
 ```
+
+
+
+
+
+###PCOA across years w/ field D ###
+
+```{r - Conduct a PCoA just controls plots over time (log)}
+
+head(da_fieldD_3 ) #long form field D##
+head(d3woody)  ##long form fields ABC##
+
+
+d3controls<-d3woody %>% filter(ntrt==9) %>% select(field, exp, plot, year, species, mass.above)
+
+da_fieldD_3$exp<-1
+
+da_fieldD_3<-da_fieldD_3 %>% select(field, exp, plot, year, species, mass.above)
+
+fieldABCD<-rbind(da_fieldD_3, d3controls)
+
+# Transpose data to be a site by species matrix
+fieldABCD_wide <- reshape(fieldABCD,
+                   v.names="mass.above",
+                   idvar=c("field", "plot", "year"),
+                   timevar="species",
+                   direction="wide") 
+
+
+fieldABCD_wide_sorted<-fieldABCD_wide%>%arrange(year)%>%arrange(plot)%>%arrange(field)%>%arrange(exp)
+
+##subset to fewer years###
+
+fieldABCD_wide_subset<-subset(fieldABCD_wide_sorted, year==1982|year==1992|year==2004|year==2019)
+
+
+##just the plot data field ABCD##
+plotABCD<-fieldABCD_wide_sorted%>% dplyr::select(field, exp, plot, year)
+
+plotABCDsubset<-fieldABCD_wide_subset%>% dplyr::select(field, exp, plot, year)
+
+
+
+##just the veg data##
+
+vegABCD<-fieldABCD_wide_sorted[5:225]
+
+vegABCDsubset<-fieldABCD_wide_subset[5:225]
+
+# Fill in NA's with zeros in wide data set
+vegABCD[is.na(vegABCD)] <- 0
+
+vegABCDsubset[is.na(vegABCDsubset)] <- 0
+
+
+vegmatrixABCD<-as.matrix(vegABCD)
+
+vegmatrixABCDsubset<-as.matrix(vegABCDsubset)
+
+logvegABCD<-log(1+vegmatrixABCD)
+
+logvegABCDsubset<-log(1+vegmatrixABCDsubset)
+
+## Bray curtis dissimiliarty matrix##
+distABCD<-vegdist(logvegABCD, method="bray")
+BCdistABCD<-as.matrix(distABCD)  ##into a matrix#
+BCdistABCDdf<-as.data.frame(BCdistABCD)  #into a dataframe#
+
+BCdistABCDdf2<-cbind(plotABCD,BCdistABCDdf) #merge plot data w/ dissim matrix##
+
+
+
+distABCDsubset<-vegdist(logvegABCDsubset, method="bray")
+BCdistABCDsubset<-as.matrix(distABCDsubset)  ##into a matrix#
+BCdistABCDdfsubset<-as.data.frame(BCdistABCDsubset)  #into a dataframe#
+
+BCdistABCDdf2subset<-cbind(plotABCDsubset,BCdistABCDdfsubset) #merge plot data w/ dissim matrix##
+
+
+
+##BCdistABCD2 has the plot info and the BC dissimilarity matrix for all the control plots from E001 and E002 ABC and field D ######
+
+###PcOA fields ABCD####
+
+PCOA_ABCD <- pcoa(BCdistABCD)  ## takes a while##
+
+
+###NMDS ABCD subset###
+
+NMDS_ABCD <- metaMDS(BCdistABCDsubset, trymax = 100)
+
+## extracting the axis scores for each exp##
+
+PCOAaxes_ABCD<- PCOA_ABCD$vectors[,c(1,2)]
+
+NMDSscores_ABCD<-as.data.frame(NMDS_ABCD$points)
+
+##merge the PCOA axis scores with the plot data ###
+
+PCOAABCDandplotsboth<-cbind(plotABCD,PCOAaxes_ABCD )
+
+PCOAABCDandplotsboth$exp<-as.factor(PCOAABCDandplotsboth$exp)
+##PCOAABCD has the plot info and the PCOA scores for all the control plots from E001 and E002 ABC and field D###
+
+
+##merge the NMDS scores###
+
+NMDSscoresandplots<-cbind(plotABCDsubset, NMDSscores_ABCD)
+
+###
+####subset to three years to see time series###
+
+PCOAABCDandplotsboth_subset<-subset(PCOAABCDandplotsboth, year==1982|year==1992|year==2004)
+
+####Plotting PCOA###
+
+
+PcoA_ABCD<-ggplot(PCOAABCDandplotsboth, aes(x=Axis.1  , y=Axis.2 , shape=exp, color=field)) + geom_point(size=2) +facet_wrap(~year)
+
+
+PcoA_ABCDsubset<-ggplot(PCOAABCDandplotsboth_subset, aes(x=Axis.1  , y=Axis.2 , shape=exp, color=field)) + geom_point(size=2) +facet_wrap(~year)
+
+
+NMDS_ABCD_subset<-ggplot(NMDSscoresandplots, aes(x=MDS1  , y=MDS2 , shape=as.factor(NMDSscoresandplots$exp), color=field)) + geom_point(size=2) +facet_wrap(~year)
+
+### species fit##
+
+spp.fit <- envfit(NMDS_ABCD, logvegABCDsubset, permutations = 999)
+
+spp.scrs <- as.data.frame(scores(spp.fit , display = "vectors"))
+
+spp.scrs <- cbind(spp.scrs, Species = rownames(spp.scrs))
+
+spp.scrs <- cbind(spp.scrs, pval = spp.fit$vectors$pvals)
+
+sig.spp.scrs <- subset(spp.scrs, pval<=0.001)
+
+sig.sppdf<-as.data.frame(sig.spp.scrs)
+
+sig.sppdf$Species<-str_remove(sig.sppdf$Species, "mass.above.")
+
+
+####
+
+##species plot###
+
+NMDS_ABCD_species<-ggplot(sig.sppdf)+
+  geom_segment(data = sig.sppdf, aes(x = 0, xend=NMDS1, y=0, yend=NMDS2), arrow = arrow(length = unit(0.25, "cm")), colour = "grey10", lwd=0.3) + #add vector arrows of significant species
+  ggrepel::geom_text_repel(data = sig.sppdf, aes(x=NMDS1, y=NMDS2, label = Species), cex = 3, direction = "both", segment.size = 0.25)+ #add labels for species, use ggrepel::geom_text_repel so that labels do not overlap
+  labs(title = "Ordination with species vectors")
+
+
+
+
+
+
+```
+
 
 
 
@@ -1619,7 +1621,6 @@ bd_allbyfield_2_df<-bd_allbyfield_2_df%>%mutate(ntrt2 = ntrt)%>% mutate(year2=ye
 ```
 
 
-
 ###FIT lines by all NTRT treatments and FIELD### ### not working...####
 ```{r - model fits and error dist TO centroid, TABLE S2}
 
@@ -1638,9 +1639,6 @@ list_models <- lapply(split(bd_allbyfield_df3, bd_allbyfield_df3$expfieldntrt), 
 
 
 ```
-
-
-
 
 ### PLOT DISPERSION WITH ALL N TREATMENTS###
 ```{r - recreate FIG 3ab, w/ ALL nutrient treatments (log data)}
@@ -1682,8 +1680,6 @@ disttocentroidplot<- ggplot(bd_allbothfull_df2) +
 
 ```
 
-
-
 ###PLOT DISPERSION WITH ALL N TREATMENTS AND BY FIELD ###
 ```{r - recreate FIG 3ab, w/ ALL nutrient treatments BY FIELD (log data)}
 
@@ -1724,11 +1720,6 @@ disttocentroidplotBYFIELD<- ggplot(bd_allbyfield_2_df, aes(x=year2, y=distances,
 
 ```
 
-
-
-
-
-
 ```{r - Calculate the distance BTWN centroids (logdata) }
 
 ##pulling out the group centroids by year####
@@ -1766,8 +1757,6 @@ centroiddists<-centroiddf_4%>% group_by(expyear) %>% dplyr::summarise(meandist=m
 ##this dataframe (centroidsdists) has the average distance between nutrient group centroids for each year, for each experiment####
 
 ```
-
-
 
 ```{r - Calculate the distance BTWN centroids BY field (logdata) }
 
@@ -1807,7 +1796,6 @@ centroiddistsbyfield<-centroiddf_byfield_4%>% group_by(expfieldyear) %>% dplyr::
 
 ```
 
-
 ```{r - AIC table dist BTWN centroid, TABLE S3 }
 
 
@@ -1829,7 +1817,6 @@ aictable(rawaic,nR)
 ###Nonlinear is the best fit###
 
 ```
-
 
 ```{r - recreate FIG 3 cd, distance BTWN centroids (logdata)}
 
@@ -1919,8 +1906,7 @@ distbetweencentroids<-ggplot(data=centroiddists_3,aes(x=as.numeric(as.character(
 
 ```
 
-
-#### BY FIELD WITH ALL NUTRIENT TREATMENTS####
+#### DISPERSION BY FIELD WITH ALL NUTRIENT TREATMENTS####
 ```{r - recreate FIG 3 cd, distance BTWN centroids BY FIELD (logdata)}
 
 
@@ -1989,6 +1975,120 @@ g11 <- ggplotGrob(disttocentroidplot_2)
 g22 <- ggplotGrob(distbetweencentroids)
 
 grid.arrange(g11, g22 , ncol = 1, heights = c(1, 1))
+
+
+
+```
+
+
+#### DISPERSION BETWEEN E001 and E002 by FIELD####
+```{r - dispersion E001 and E002 by field (logdata)}
+
+##START W/ DATA SET subsetted to 2004 to compare E001 and E002 ##
+
+##subset to years before 2005 for BOTH E001 and E002 ## (bc of change in fire regime)
+
+da.wide5$year<-as.numeric(as.character(da.wide5$year)) 
+
+exp12subset<-subset(da.wide5,year<2005)
+
+
+##just the veg data##
+
+veg_full<-exp12subset%>% dplyr::select(`mass.above.ACER NEGUNDO` :`mass.above.VIOLA SP.`)
+
+
+###log transformation####
+
+vegmatrixfull<-as.matrix(veg_full)
+
+logvegfull<-log(1+vegmatrixfull)
+
+
+
+#### add on a exp field year column###
+
+
+exp12subset_111 <- exp12subset %>%  mutate(expfieldyear= paste(exp, field, year, sep = '_'))
+
+##using the apply function to calculation the dispersion (beta disp) for each nutrient treatment for each FIELD for each year#
+
+bd_E001E002byfield<-betadisper(vegdist(logvegfull),exp12subset_111$expfieldyear, type = "centroid")    ####Note that you have to specify the centroid ##  ##takes a minute ##
+
+
+##some squared distances are negative and changed to zero##
+
+
+######making group distances into a dataframe with rownames###
+
+
+bd_E001E002byfield_2<-as.data.frame(bd_E001E002byfield$group.distances, row.names = rownames(bd_E001E002byfield$group.distances))
+
+setDT(bd_E001E002byfield_2, keep.rownames = TRUE)[]
+
+
+bd_E001E002byfield_2_df<-separate(data = bd_E001E002byfield_2, col = rn, into = c("exp", "field", "year"))
+
+bd_E001E002byfield_2_df$year<-as.numeric(bd_E001E002byfield_2_df$year)
+
+bd_E001E002byfield_2_df$distances<-as.numeric(bd_E001E002byfield_2_df$`bd_E001E002byfield$group.distances`)
+
+bd_E001E002byfield_2_df<-bd_E001E002byfield_2_df%>% mutate(year2=year-1981)
+
+###this dataframe (bd_E001E002byfield_2_df) has the average distance to the centroid for each field in each year to its E001 or E002 group centroid. Distances = the average Bray dist for ALL 54 plots to their group centroids  ##
+
+
+
+##pulling out the group centroids by year####
+
+centroidE001E002df<-as.data.frame(bd_E001E002byfield[["centroids"]])
+
+centroidE001E002df_2<-centroidE001E002df[,1:2]
+
+centroidE001E002df_2 <- tibble::rownames_to_column(centroidE001E002df_2, "expfieldyear")
+
+centroidE001E002df_2<-separate(data = centroidE001E002df_2, col = expfieldyear, into = c("exp", "field", "year"))
+
+centroidE001E002df_2<-centroidE001E002df_2 %>%   mutate(fieldyear= paste(field, year, sep = '_')) %>% select(exp, field, year, fieldyear, PCoA1, PCoA2)
+###
+
+###calculate distance between E001 and E002 centroids###
+
+centroidE001<-subset(centroidE001E002df_2, exp==1) #dim = 69 X 6 ##
+
+centroidE002<-subset(centroidE001E002df_2, exp==2) #dim = 58 X 6 ##   ### three missing in E002####
+
+##merge them...dropping the ones in E001 that we don't have E002 for####
+
+mergedcentroids<-merge(centroidE002, centroidE001, by = "fieldyear", all.x = TRUE)
+
+#use pythag theorem to get distance between E001 and E002 centroids###
+
+mergedcentroids_dist<-mergedcentroids %>% mutate(distcentroids=sqrt((PCoA1.y - PCoA1.x)^2+(PCoA2.y-PCoA2.x)^2))
+
+
+```
+
+
+
+#### PLOT DISPERSION BETWEEN E001 and E002 by FIELD####
+```{r - plot dispersion E001 and E002 }
+
+mergedcentroids_dist_2 <-mergedcentroids_dist%>% mutate(year2=as.numeric(year.x)-1981)
+
+
+
+distE001E002BYFIELD<- ggplot(mergedcentroids_dist_2, aes(x=year2, y=distcentroids)) +
+    geom_point()  +
+   geom_smooth(method="loess", se=FALSE) +
+   facet_wrap(~field.x)+ 
+    ylab(expression('Average distance between E001 and E002 group centroid'))+
+    xlab("Time since experiment")+
+    mytheme+
+    theme(legend.position="right")+
+    theme(legend.title = element_blank()) + 
+    theme(strip.text = element_text(size=12, face="bold"))+
+     theme(strip.background = element_blank())
 
 
 
