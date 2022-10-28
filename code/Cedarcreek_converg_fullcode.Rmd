@@ -30,7 +30,7 @@ library(indicspecies)
 library(BiodiversityR)
 
 
-
+##try again##
 
 ```{r aictable function}
 
@@ -225,12 +225,18 @@ dim(design.df)
 with(design.df, table(plot, field, exp))
 dim(design.df)
 
+#### Important note: burn.origin column isn't exactly right for B E002. The burn doesn't happen until 1992, so should be 54 plots from 1982-1991 and 27 plots 1992-2004###
+
 summary(design.df.yr)
-design.orig <- design.df.yr
+design.orig <- design.df.yr   #dim 9086 X 12
+
 # Delete cessations plots
-design.orig <- design.orig[design.orig$ntrt.origin==1,]
-# Delete subplots with experimental burns
-design.orig <- design.orig[design.orig$burn.origin==1,]
+design.orig <- design.orig[design.orig$ntrt.origin==1,]  #dim #7799   12#
+
+
+# Delete subplots with experimental burns (after 1992)
+#design.orig <- design.orig[design.orig$burn.origin==1,]
+design.orig<-subset(design.orig, year < 1992| year >= 1992 & burn.origin==1) #dim #6153   12#
 
 # Some field level data is not represented in both data sets
 # Get this sorted out across merged data set
@@ -251,7 +257,8 @@ design.orig <- design.orig[design.orig$sel,]
 with(design.orig, table(year,fence, exp))
 with(design.orig, table(year, field,fence.origin, exp))
 with(design.orig, table(year, fence, field, exp))
-dim(design.orig)
+
+dim(design.orig)   #dim #6153   12#
 summary(design.orig)
 
 # Get field scale burn record
@@ -264,18 +271,31 @@ da <- merge(da, df.burn, by=c("field", "year"), all.x=TRUE)
 # MERGE IN DESIGN.ORIG FILE TO ONLY HAVE FILES FOR WHICH TREATMENTS HAVE NOT CHANGED
 
 dim(da)  ##72737  X  19### ##includes N cessation and burned plots###
-dim(design.orig)
+dim(design.orig)  # Unique plot_years with correct treatments### ##dim 6396##
 
 design.orig2<-design.orig %>% select(field, year, exp, disk, plot, subplot, ntrt, other.add, ntrt.origin, burn.origin, fence.origin)
 
 da_min<-da %>% select(field, year, exp, disk, plot, subplot, ntrt,  species, mass.above) #72737  X 9### ##includes N cessation and burned plots###
 
-da_orig<-merge(design.orig2, da_min, by =c("field", "year", "exp", "disk", "plot", "subplot", "ntrt")) # 49677    17 ##3 cessation and burned plots are REMOVED###
+da_orig<-merge(design.orig2, da_min, by =c("field", "year", "exp", "disk", "plot", "subplot", "ntrt")) # ##dim 50404    13### 
+
+### da_orig is what we want to use moving foward...##
+
+##### get counts by plot year to crosscheck with excel file "Datasubset_CC Convergence###
 
 
-#write.csv(design.df.yr,"C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/allplotstrts.csv", row.names = FALSE)
-#(design.orig,"C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/designorigtrt.csv", row.names = FALSE)
+da_origsiteyear<-da_orig %>%  distinct(field, year, exp, disk, plot, subplot, ntrt, .keep_all = T)
 
+plotcountcheck<-da_origsiteyear%>%group_by(exp, field, year) %>%  tally()
+
+plotcountcheck2<-da_origsiteyear%>%group_by(exp, year) %>%  tally()
+
+
+sum(plotcountcheck$n)  ## 6396 total plot  years to be analyzed with full times series (note that this includes the E/W subplots that are compiled later...#### 
+
+plotcountcheck19822004<-subset(plotcountcheck, year < 2005)
+
+sum(plotcountcheck19822004$n) #  6102 total plots 1982 to 2004 #### matches exactly w/ excel file## :-) 
 
 ################# TAXONOMIC AND OTHER SMALL DATA FIXES####################
 
@@ -528,6 +548,15 @@ exp12subset_1<-subset(exp12subset,ntrt==9|ntrt==1|ntrt==2|ntrt==4|ntrt==6)
 ## E001 data set is complete from 1982 - 2004. E002 dataset is missing years 1995, 1998, 2001, 2003 ALL fields##
 
 
+
+
+```
+
+
+
+```{r clean field D data}
+
+
 #### SELECTING JUST FIELD D TO LOOK AT REMNANT VEGETATION (NEVER PLOWED)###
 
 # Stack exp1 & 2 data
@@ -560,7 +589,8 @@ da_fieldD$species <- gsub("SEDGES", "CAREX SP.", da_fieldD$species)
 da_fieldD$species <- gsub("QUERCUS RUBRUM", "QUERCUS RUBRA", da_fieldD$species)
 
 # Find litter and code as not alive
-sel<-da_fieldD$species == 'MISCELLANEOUS LITTER'
+sel<-da_fieldD$species == 'MISCELLANEOUS LITTER'|da_fieldD$species == 'WOODY DEBRIS'
+
 da_fieldD$live[sel] <- 0
 
 sel<-grep("PINE", da_fieldD$species)
@@ -609,9 +639,11 @@ da_fieldD_2<-subset(da_fieldD, live==1)
 da_fieldD_3 <- da_fieldD[da_fieldD$sorted ==1 & da_fieldD$live ==1 & da_fieldD$wood==0, c("field", "plot", "year", "species", "mass.above")]
 
 
+######### with trees####
+
 
 # Transpose data to be a site by species matrix
-da_fieldD_wide <- reshape(da_fieldD_3,
+da_fieldD_wide <- reshape(da_fieldD_2,
                    v.names="mass.above",
                    idvar=c("field", "plot", "year"),
                    timevar="species",
@@ -625,7 +657,6 @@ da_fieldD_wide[is.na(da_fieldD_wide)] <- 0
 
 
 ```
-
 
 
 
@@ -692,9 +723,6 @@ PCOAandplotsboth<-cbind(plot,PCOAaxesboth )
 
 
 
-
-
-
 ```
 
 
@@ -711,42 +739,75 @@ exp12subset_2<-exp12subset_1%>%filter(year!=1995)%>%filter(year!=1998)%>%filter(
 
 ###log transform the biomass data###
 
-justveg<-as.matrix(exp12subset_2[,12:222])
+justveg<-as.matrix(exp12subset_2[,12:198])
 
 logveg<-log(1+justveg)
 
 exp12subset_2<-cbind(exp12subset_2[,1:11], logveg)
 
 
-#drop the levels not sampeled
 
-levels(exp12subset_2$year)
-exp12subset_2$year <- as.factor(as.character(exp12subset_2$year))
-
-### Extract one year to get the apply function to work#####
+### Extract two  years year to get the apply function to work#####
 
 da.wide_1990<-subset(exp12subset_2, year=="1990", row.names=NULL)
 
-##Do a PERMANOVA looping over years, looking at effect of exp (disturbed or not), ntrt treatment# and field (A, B, C)###
+da.wide_1999<-subset(exp12subset_2, year=="1999", row.names=NULL)
 
 ###
-permallfields<-lapply(X = split.data.frame(x = exp12subset_2, f=exp12subset_2$year),function(t){
-  z<-adonis2(vegdist(t[,11:175])~exp+ntrt+field, data= da.wide_1990)
+exp12subset_19821991<-subset(exp12subset_2, as.numeric(as.character(year)) < 1992)
+exp12subset_19922004<-subset(exp12subset_2, as.numeric(as.character(year)) >= 1992)
+
+#drop the levels not sampeled
+
+levels(exp12subset_19821991$year)
+exp12subset_19821991$year <- as.factor(as.character(exp12subset_19821991$year))
+
+
+levels(exp12subset_19922004$year)
+exp12subset_19922004$year <- as.factor(as.character(exp12subset_19922004$year))
+
+##Do a PERMANOVA looping over years, looking at effect of exp (disturbed or not), ntrt treatment# and field (A, B, C)###
+
+##need to do this in two batches because from 1992 on there are fewer plots..####
+
+###
+permallfields1<-lapply(X = split.data.frame(x = exp12subset_19821991, f=exp12subset_19821991$year),function(t){
+  z<-adonis2(vegdist(t[,11:198])~exp+ntrt+field, data= da.wide_1990)
   return(data.frame(z))
   }
   )
 
 
 
+permallfields2<-lapply(X = split.data.frame(x = exp12subset_19922004, f=exp12subset_19922004$year),function(t){
+  z<-adonis2(vegdist(t[,11:198])~exp+ntrt+field, data= da.wide_1999)
+  return(data.frame(z))
+  }
+  )
+
+
+
+
 ##dataframe of results##
-permmaster<-plyr::ldply(permallfields, data.frame)
+permmaster1<-plyr::ldply(permallfields1, data.frame)
+permmaster2<-plyr::ldply(permallfields2, data.frame)
+
+
 names<-c("Disturbance", "Fertilization", "Field", "residual", "total")
 
-sourcevariation<-rep(names,length(unique(permmaster$.id)))
+sourcevariation<-rep(names,length(unique(permmaster1$.id)))
 
-permmaster2<-cbind(sourcevariation,permmaster)
+permmaster11<-cbind(sourcevariation,permmaster1)
+
+sourcevariation<-rep(names,length(unique(permmaster2$.id)))
+
+permmaster22<-cbind(sourcevariation,permmaster2)
+
+###
+
+permmasterall<-rbind(permmaster11, permmaster22)
   
-permmaster3<-subset(permmaster2,sourcevariation=="Disturbance"|sourcevariation=="Fertilization"|sourcevariation=="Field") 
+permmaster3<-subset(permmasterall,sourcevariation=="Disturbance"|sourcevariation=="Fertilization"|sourcevariation=="Field") 
 
 ##This dataframe (permmmaster3) has the results from a permanova for each independent variable (disturbance, field, fertilization) for every year in the dataset w/ everything sampeled. The R2 column is what is plotted in Fig 1 ###
 
@@ -781,7 +842,7 @@ variancetimeall<-permmaster5 %>% ggplot(aes(x=as.numeric(year2), y=R2, group=sou
     geom_point() +
     facet_wrap(~sourcevariation, strip.position = c("top"))+
     geom_smooth(method="loess", colour="black", size=0.5, fill = "gray1") +
-    geom_text(aes(x = 2.0, y = 0.49, label = abclabels, group =     abclabels),size = 4,check_overlap = T)+
+    geom_text(aes(x = 2.0, y = 0.54, label = abclabels, group =     abclabels),size = 4,check_overlap = T)+
     ylab(expression('Explained variation'))+
     xlab("Time since experiment (years)")+
     mytheme+
@@ -807,7 +868,7 @@ mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3
 
 ##all fields. averaging across plots in all fields (n=18) with the same treatment group##
 
-#first check that there are 18 in each ntrt treatment / year##
+#first check that there are 18 OR 9 in each ntrt treatment / year##
 PCOAandplotscount<-PCOAandplotsboth %>% count(year,disk,ntrt)
 
 ####2003 for E002 only has 1 field so we remove it###
@@ -904,12 +965,11 @@ PcoAfieldAveragedE001E002<-ggplot(PCOAandplotsavg3[order(PCOAandplotsavg3$year),
 PCOAandplotsavg<-PCOAandplotsboth %>% group_by(exp,year,disk,ntrt) %>% dplyr::summarise(meanAxis1=mean(Axis.1, na.rm=TRUE),sdAxis1=sd(Axis.1, na.rm=TRUE),seAxis1=sd(Axis.1, na.rm=TRUE)/sqrt(n()),meanAxis2=mean(Axis.2, na.rm=TRUE),sdAxis2=sd(Axis.2, na.rm=TRUE),seAxis2=sd(Axis.2, na.rm=TRUE)/sqrt(n()), n=n())
 
 
-###get rid of years where we don't have all 18 plots###
+###get rid of years where we don't have 9 or 18 plots###
 ####2003 for E002 only has 1 field, so remove it###
 
-PCOAandplotsavg2<-subset(PCOAandplotsavg, n==18)
+PCOAandplotsavg2<-subset(PCOAandplotsavg, n>8)
 
-PCOAandplotsavg2<-PCOAandplotsavg2%>%mutate(ntrt2 = as.factor(ntrt))
 
 PCOAandplotsavg2<-PCOAandplotsavg2  %>% mutate(yearlabel=ifelse(year==1982|year==1988|year==1992|year==2004,year, NA))
 
@@ -1002,8 +1062,8 @@ PcOAdecade<-ggplot(data=PcoAplayingfirst2, aes(x=meanAxis1  , y=meanAxis2 , colo
     ylab(expression(atop("", paste("PCoA 2"))))+
     xlab("PCoA 1")+
     facet_grid(~disk) + 
-    xlim(-0.28,0.375)+
-    ylim(-0.35,0.15)+
+    xlim(-0.28,0.42)+
+    ylim(-0.5,0.15)+
     scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
     mytheme+
     theme(legend.position="none")+
@@ -1016,9 +1076,95 @@ PcOAdecade<-ggplot(data=PcoAplayingfirst2, aes(x=meanAxis1  , y=meanAxis2 , colo
 
 
 
+###CODE CHECKING GOT UP TO HERE on 10/27#######
 
 
-###PCOA across years w/ field D ###
+###PCOA across years and all fields including field D ###
+
+```{r - Conduct a PCoA fields ABCD (log)}
+
+head(da_fieldD_3) #long form field D##
+head(d3woody)  ##long form fields ABC##
+
+
+###
+da_fieldD_3$exp<- 0
+
+###Stack datasets###
+
+fieldsABCDall<-dplyr::bind_rows(d3woody, da_fieldD_3)
+
+
+##subset to years before 2004###
+
+fieldsABCD1982_2004<-subset(fieldsABCDall, year<2005)
+
+
+# Transpose data to be a site by species matrix
+fieldsABCD_wide <- reshape(fieldsABCD1982_2004,
+                   v.names="mass.above",
+                   idvar=c("field", "exp", "plot", "year"),
+                   timevar="species",
+                   direction="wide") 
+
+# Fill in NA's with zeros in wide data set
+fieldsABCD_wide[is.na(fieldsABCD_wide)] <- 0
+
+
+##arrange the dataframe so that that columns and rows are in right order##
+fieldsABCD_wide_sorted<-fieldsABCD_wide%>%arrange(year)%>%arrange(plot)%>%arrange(field)%>%arrange(exp)
+
+
+##just the plot data##
+plotABCD<-fieldsABCD_wide_sorted%>% dplyr::select('field':'ntrt2')
+
+##just the veg data##
+
+vegABCD<-fieldsABCD_wide_sorted%>% dplyr::select(`mass.above.ACER NEGUNDO`:`mass.above.SOLANUM DULCAMARA`)  ###double check selecting all veg columns##
+
+
+###log transformation####
+
+vegmatrixABCD<-as.matrix(vegABCD)
+
+logvegABCD<-log(1+vegmatrixABCD)
+
+
+## Bray curtis dissimiliarty matrix##
+distABCD<-vegdist(logvegABCD, method="bray")
+
+BCdistABCD<-as.matrix(distABCD)  ##into a matrix#
+BCdistABCDdf<-as.data.frame(BCdistABCD)  #into a dataframe#
+
+BCdistABCDdf2<-cbind(plotABCD,BCdistABCDdf) #merge plot data w/ dissim matrix##
+
+####
+
+
+### PCOA ABCD both E001 and E002####
+
+PCOA_ABCD <- pcoa(distABCD)  ## takes a while##
+
+## extracting the axis scores for each exp##
+
+PCOAaxesABCD <- PCOA_ABCD$vectors[,c(1,2)]
+
+
+##merge the axis scores with the plot data ###
+
+PCOAandplotsABCD<-cbind(plotABCD,PCOAaxesABCD  )
+
+##PCOAandplotsABCD has the plot info and the PCOA scores for the entire experiment (E001 and E002, all three fields combined, with a subsetted selection of the ntrt treatments). ALSO INCLUDES FIELD D. Only goes up to 2004. ###
+
+
+
+```
+
+
+
+
+
+###PCOA across years controls and field D ###
 
 ```{r - Conduct a PCoA just controls plots over time (log)}
 
@@ -2313,6 +2459,77 @@ grid.arrange(g111, g222 , ncol = 1, heights = c(1, 1))
 ```
 
 
+
+###SINOUSITY USING TRAJECTORY DIRECTIONALITY ####
+```{r - calculate sinuosity of trajectories (log data)}
+
+##distABCD ### 
+
+##make each field, experiment, plot, its own combo###
+plotABCD2<-plotABCD%>% mutate(fieldexpplot= paste(field, exp,plot, sep = '_'))
+
+##
+plotABCD3<-distinct(plotABCD2, fieldexpplot, .keep_all=TRUE)
+
+
+trajdirection<-trajectoryDirectionality(distABCD, plotABCD2$fieldexpplot, plotABCD2$year)
+
+
+trajdirectdf<-cbind(plotABCD3, trajdirection)
+
+
+##mean directionality for each exp_ntrt including field d ###
+
+trajdiravg<-trajdirectdf%>% group_by(exp, ntrt) %>% dplyr::summarise(trajdiravg=mean(trajdirection, na.rm=TRUE),sdtrajdir=sd(trajdirection, na.rm=TRUE),setrajdir=sd(trajdirection, na.rm=TRUE)/sqrt(n()), uprconfint=trajdiravg+(1.96*setrajdir),lwrconfint=trajdiravg-(1.96*setrajdir), n=n())
+
+
+```
+
+
+
+```{r - recreate FIGURE 4ab Directionality}
+
+##for plotting###
+trajdiravg2<-trajdiravg %>% mutate(ntrt2=ntrt)
+
+
+
+trajdiravg2$ntrt2  <- mapvalues(trajdiravg2$ntrt2, from=c("0", "9", "1", "2", "3", "4","5","6", "7", "8"),
+                               to=c("Never", "None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+
+trajdiravg2$ntrt2 <- factor(trajdiravg2$ntrt2, levels = c("Never", "None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+
+
+trajdiravg2$exp<-mapvalues(trajdiravg2$exp, from=c("0", "1", "2"), to=c("Remnant", "Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+trajdiravg2$exp<- factor(trajdiravg2$exp, levels = c("Remnant", "Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+
+
+mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title.x=element_text(size=12))+theme(axis.title.y=element_text(size=10))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))+ theme(panel.grid.major = element_line(colour = "gray 85"))+ theme(panel.grid.minor = element_line(colour = "gray 95"))
+
+
+directionalityplot<- ggplot(data=trajdiravg2, aes(x=ntrt2, y=trajdiravg, group=ntrt2, color=ntrt2)) +
+    geom_point(size=2) +
+    geom_errorbar(aes(ymin=lwrconfint, ymax=uprconfint), size=1)+
+    facet_grid(~exp, scales = "free_x")+ 
+    xlab("")+
+    ylab(expression(atop("Average directionality", paste("(1982 - 2004)"))))+
+    mytheme+
+    theme(legend.position="none")+
+    theme(legend.title = element_blank()) + 
+  theme(strip.text.x = element_text(size = 14, colour = "black"))+
+     theme(axis.text.x = element_text(angle = 25,vjust = 0.5))+
+    theme(strip.text = element_text(face="bold"))+
+     theme(strip.background = element_blank())+
+   theme(strip.text = element_text(size=12, face="bold"))+
+     theme(strip.background = element_blank())
+
+
+```
+
+
+
 ##TRAJECTORY DISTANCE####
 
 ##
@@ -2394,6 +2611,50 @@ avgTraj_byyear_E001E002_2<- avgTraj_byyear_E001E002 %>% mutate (year2=as.numeric
 
 
 ```
+
+
+
+
+##
+```{r - calculate trajectory distance between years BC dist matrix (log data)}
+
+
+##distABCD ###
+#BCdistABCDdf2#
+
+##make each field, experiment, plot, its own combo###
+
+plotABCD2<-plotABCD%>% mutate(fieldexpplot= paste(field, exp,plot, sep = '_'))
+
+##
+plotABCD3<-distinct(plotABCD2, fieldexpplot, .keep_all=TRUE)
+
+
+
+###split it by E001 + field D and E002 since there are missing years in E002##
+BCdistE001andD<-subset(BCdistABCDdf2, exp==1|exp==0) 
+BCdistE002<-subset(BCdistABCDdf2, exp==2) 
+
+BCmatrixE001andD<-as.matrix(BCdistE001andD[,11:4761])
+BCmatrixE002<-as.matrix(BCdistE002[,11:4761])
+
+plotABCDE001<-subset(plotABCD2, exp==1|exp==0)
+plotABCE002<-subset(plotABCD2, exp==2)
+
+
+###
+
+####
+trajlengthall<-trajectoryLengths(BCdistE001andD,  plotABCDE001$fieldexpplot,  plotABCDE001$year)
+
+
+
+
+
+
+```
+
+
 
 
 ```{r - AIC trajectory analysis, TABLE S5 and S6}
