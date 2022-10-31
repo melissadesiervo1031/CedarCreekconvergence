@@ -294,7 +294,7 @@ sum(plotcountcheck$n)  ## 6396 total plot  years to be analyzed with full times 
 
 plotcountcheck19822004<-subset(plotcountcheck, year < 2005)
 
-sum(plotcountcheck19822004$n) #  6102 total plots 1982 to 2004 #### matches exactly w/ excel file## :-) 
+sum(plotcountcheck19822004$n) #  6102 total plots-years 1982 to 2004 #### matches exactly w/ excel file## :-) 
 
 ################# TAXONOMIC AND OTHER SMALL DATA FIXES####################
 
@@ -1075,6 +1075,7 @@ PcOAdecade<-ggplot(data=PcoAplayingfirst2, aes(x=meanAxis1  , y=meanAxis2 , colo
 
 
 ###PERMANOVA AND PCOA FULL N GRADIENT###
+##this chuck takes a long time to run.....###
 
 ```{r - Conduct a PCoA using all the veg data across years  FULL N GRADIENT (log)}
 
@@ -1141,7 +1142,7 @@ PCOAandplotsboth_fullN<-cbind(plot,PCOAaxesboth_fullN )
 
 ```
 
-
+##this chuck takes a long time to run.....###
 
 ```{r - Conduct permanova: nutrient, disturbance, field effect (log data) FULL N GRADIENT}
 
@@ -1492,7 +1493,6 @@ PcOAdecade_fullN<-ggplot(data=PcoAplayingfirst2_fullN, aes(x=meanAxis1  , y=mean
 
 
 
-###CODE CHECKING GOT UP TO HERE on 10/27#######
 
 
 
@@ -1501,12 +1501,14 @@ PcOAdecade_fullN<-ggplot(data=PcoAplayingfirst2_fullN, aes(x=meanAxis1  , y=mean
 ```{r - Conduct a PCoA just controls plots over time (log)}
 
 head(da_fieldD_3 ) #long form field D##
+da_fieldD_3$exp<-1
+
 head(d3woody)  ##long form fields ABC##
 
 
-d3controls<-d3woody %>% filter(ntrt==9) %>% select(field, exp, plot, year, species, mass.above)
+d3controls<-d3woody %>% filter(ntrt==9)%>% filter(exp==1) %>% select(field, exp, plot, year, species, mass.above)
 
-da_fieldD_3$exp<-1
+
 
 da_fieldD_3<-da_fieldD_3 %>% select(field, exp, plot, year, species, mass.above)
 
@@ -1522,37 +1524,33 @@ fieldABCD_wide <- reshape(fieldABCD,
 
 fieldABCD_wide_sorted<-fieldABCD_wide%>%arrange(year)%>%arrange(plot)%>%arrange(field)%>%arrange(exp)
 
-##subset to fewer years###
+###count of plots###
 
-fieldABCD_wide_subset<-subset(fieldABCD_wide_sorted, year==1982|year==1992|year==2004|year==2019)
+##there should be 3 or 6 plots per field A, B, C to 2004, and 45 in field D ###########
+plotcountcheck2<-fieldABCD_wide_sorted%>%group_by(exp, field, year) %>%  tally()
+
+
+
+##subset to fewer years###
 
 
 ##just the plot data field ABCD##
 plotABCD<-fieldABCD_wide_sorted%>% dplyr::select(field, exp, plot, year)
 
-plotABCDsubset<-fieldABCD_wide_subset%>% dplyr::select(field, exp, plot, year)
-
-
 
 ##just the veg data##
 
-vegABCD<-fieldABCD_wide_sorted[5:225]
+vegABCD<-fieldABCD_wide_sorted[5:201]
 
-vegABCDsubset<-fieldABCD_wide_subset[5:225]
 
 # Fill in NA's with zeros in wide data set
 vegABCD[is.na(vegABCD)] <- 0
 
-vegABCDsubset[is.na(vegABCDsubset)] <- 0
-
 
 vegmatrixABCD<-as.matrix(vegABCD)
 
-vegmatrixABCDsubset<-as.matrix(vegABCDsubset)
-
 logvegABCD<-log(1+vegmatrixABCD)
 
-logvegABCDsubset<-log(1+vegmatrixABCDsubset)
 
 ## Bray curtis dissimiliarty matrix##
 distABCD<-vegdist(logvegABCD, method="bray")
@@ -1563,182 +1561,124 @@ BCdistABCDdf2<-cbind(plotABCD,BCdistABCDdf) #merge plot data w/ dissim matrix##
 
 
 
-distABCDsubset<-vegdist(logvegABCDsubset, method="bray")
-BCdistABCDsubset<-as.matrix(distABCDsubset)  ##into a matrix#
-BCdistABCDdfsubset<-as.data.frame(BCdistABCDsubset)  #into a dataframe#
 
-BCdistABCDdf2subset<-cbind(plotABCDsubset,BCdistABCDdfsubset) #merge plot data w/ dissim matrix##
-
-
-
-##BCdistABCD2 has the plot info and the BC dissimilarity matrix for all the control plots from E001 and E002 ABC and field D ######
+##BCdistABCD2 has the plot info and the BC dissimilarity matrix for all the control plots from E001 ABC and field D ######
 
 ###PcOA fields ABCD####
 
 PCOA_ABCD <- pcoa(BCdistABCD)  ## takes a while##
 
 
-###NMDS ABCD subset###
-
-NMDS_ABCD <- metaMDS(BCdistABCDsubset, trymax = 100)
-
 ## extracting the axis scores for each exp##
 
 PCOAaxes_ABCD<- PCOA_ABCD$vectors[,c(1,2)]
 
-NMDSscores_ABCD<-as.data.frame(NMDS_ABCD$points)
 
-##merge the PCOA axis scores with the plot data ###
+##merge the axis scores with the plot info...##
 
-PCOAABCDandplotsboth<-cbind(plotABCD,PCOAaxes_ABCD )
-
-PCOAABCDandplotsboth$exp<-as.factor(PCOAABCDandplotsboth$exp)
-##PCOAABCD has the plot info and the PCOA scores for all the control plots from E001 and E002 ABC and field D###
-
-
-##merge the NMDS scores###
-
-NMDSscoresandplots<-cbind(plotABCDsubset, NMDSscores_ABCD)
-
-###
-####subset to three years to see time series###
-
-PCOAABCDandplotsboth_subset<-subset(PCOAABCDandplotsboth, year==1982|year==1992|year==2004)
-
-####Plotting PCOA###
-
-
-PcoA_ABCD<-ggplot(PCOAABCDandplotsboth, aes(x=Axis.1  , y=Axis.2 , shape=exp, color=field)) + geom_point(size=2) +facet_wrap(~year)
-
-
-PcoA_ABCDsubset<-ggplot(PCOAABCDandplotsboth_subset, aes(x=Axis.1  , y=Axis.2 , shape=exp, color=field)) + geom_point(size=2) +facet_wrap(~year)
-
-
-NMDS_ABCD_subset<-ggplot(NMDSscoresandplots, aes(x=MDS1  , y=MDS2 , shape=as.factor(NMDSscoresandplots$exp), color=field)) + geom_point(size=2) +facet_wrap(~year)
-
-### species fit##
-
-spp.fit <- envfit(NMDS_ABCD, logvegABCDsubset, permutations = 999)
-
-spp.scrs <- as.data.frame(scores(spp.fit , display = "vectors"))
-
-spp.scrs <- cbind(spp.scrs, Species = rownames(spp.scrs))
-
-spp.scrs <- cbind(spp.scrs, pval = spp.fit$vectors$pvals)
-
-sig.spp.scrs <- subset(spp.scrs, pval<=0.001)
-
-sig.sppdf<-as.data.frame(sig.spp.scrs)
-
-sig.sppdf$Species<-str_remove(sig.sppdf$Species, "mass.above.")
-
-
-####
-
-##species plot###
-
-NMDS_ABCD_species<-ggplot(sig.sppdf)+
-  geom_segment(data = sig.sppdf, aes(x = 0, xend=NMDS1, y=0, yend=NMDS2), arrow = arrow(length = unit(0.25, "cm")), colour = "grey10", lwd=0.3) + #add vector arrows of significant species
-  ggrepel::geom_text_repel(data = sig.sppdf, aes(x=NMDS1, y=NMDS2, label = Species), cex = 3, direction = "both", segment.size = 0.25)+ #add labels for species, use ggrepel::geom_text_repel so that labels do not overlap
-  labs(title = "Ordination with species vectors")
-
-
-
+PCOAABCDandplots<-cbind(plotABCD, PCOAaxes_ABCD)
 
 
 
 ```
 
 
+```{r - Supp figure PCOA controls ABCD}
+
+
+PCOA_ABCD_average<-PCOAABCDandplots %>% group_by(field, year) %>% dplyr::summarise(meanAxis1=mean(Axis.1, na.rm=TRUE),sdAxis1=sd(Axis.1, na.rm=TRUE),seAxis1=sd(Axis.1, na.rm=TRUE)/sqrt(n()),meanAxis2=mean(Axis.2, na.rm=TRUE),sdAxis2=sd(Axis.2, na.rm=TRUE),seAxis2=sd(Axis.2, na.rm=TRUE)/sqrt(n()), n=n())
 
 
 
-
-###PCOA across years and all fields including field D ###
-
-```{r - Conduct a PCoA fields ABCD (log)}
-
-head(da_fieldD_3) #long form field D##
-head(d3woody)  ##long form fields ABC##
-
-
-###
-da_fieldD_3$exp<- 0
-
-###Stack datasets###
-
-fieldsABCDall<-dplyr::bind_rows(d3woody, da_fieldD_3)
-
-
-##subset to years before 2004###
-
-fieldsABCD1982_2004<-subset(fieldsABCDall, year<2005)
-
-
-# Transpose data to be a site by species matrix
-fieldsABCD_wide <- reshape(fieldsABCD1982_2004,
-                   v.names="mass.above",
-                   idvar=c("field", "exp", "plot", "year"),
-                   timevar="species",
-                   direction="wide") 
-
-# Fill in NA's with zeros in wide data set
-fieldsABCD_wide[is.na(fieldsABCD_wide)] <- 0
+PCOA_ABCD_averageplot<-ggplot(PCOA_ABCD_average, aes(x=meanAxis1, y=meanAxis2 , group=field, color=year)) +
+    geom_point(size=0.75) +
+    geom_errorbar(aes(ymin=meanAxis2-seAxis2, ymax=meanAxis2+seAxis2), color="dark gray", size=0.25) +
+    geom_errorbarh(aes(xmin=meanAxis1-seAxis1, xmax=meanAxis1+seAxis1), color="dark gray", size=0.25) +
+    geom_path(aes(x=meanAxis1 , y=meanAxis2 , group=field, color=year),size=0.5)+
+    geom_point(size=0.75) +
+    ylab("PCoA 2")+
+    xlab("PCoA 1")+
+    facet_grid(~field) + 
+    mytheme+
+    scale_color_viridis(option = "D")+
+    scale_fill_viridis(option = "D",trans = 'reverse')+
+    guides(#reverse color order (higher value on top)
+    color = guide_colorbar(reverse = TRUE),
+    #reverse size order (higher diameter on top) 
+    size = guide_legend(reverse = TRUE))+
+   #scale_y_continuous(breaks=c(-0.2, 0.0, 0.2, 0.4))+
+    theme(strip.background = element_blank())+
+    theme(strip.text = element_text(face="bold", size=10))+
+    theme(panel.spacing.y=unit(0.5, "lines"))
+    #geom_text_repel(aes(label=yearlabel),size = 2.5, color="black")
 
 
-##arrange the dataframe so that that columns and rows are in right order##
-fieldsABCD_wide_sorted<-fieldsABCD_wide%>%arrange(year)%>%arrange(plot)%>%arrange(field)%>%arrange(exp)
+##########
 
 
-##just the plot data##
-plotABCD<-fieldsABCD_wide_sorted%>% dplyr::select('field':'ntrt2')
 
-##just the veg data##
+######
 
-vegABCD<-fieldsABCD_wide_sorted%>% dplyr::select(`mass.above.ACER NEGUNDO`:`mass.above.SOLANUM DULCAMARA`)  ###double check selecting all veg columns##
+##Picking out a few years to show trajectory...##
 
 
-###log transformation####
+PCOA_ABCD_average
 
-vegmatrixABCD<-as.matrix(vegABCD)
+##pull out the first, last, and midpoint year##
 
-logvegABCD<-log(1+vegmatrixABCD)
+PCOA_ABCD_averagesubset<-subset(PCOA_ABCD_average, year==1982|year==1987|year==1992|year==1996|year==2004)
 
 
-## Bray curtis dissimiliarty matrix##
-distABCD<-vegdist(logvegABCD, method="bray")
+## to get arrows..###
 
-BCdistABCD<-as.matrix(distABCD)  ##into a matrix#
-BCdistABCDdf<-as.data.frame(BCdistABCD)  #into a dataframe#
+wide_ABCD<- pivot_wider(PCOA_ABCD_averagesubset, names_from = year, values_from = year)
 
-BCdistABCDdf2<-cbind(plotABCD,BCdistABCDdf) #merge plot data w/ dissim matrix##
+wide_ABCD$`1982`<-as.numeric(as.character(wide_ABCD$`1982`))
+wide_ABCD$`1987`<-as.numeric(as.character(wide_ABCD$`1987`))
+wide_ABCD$`1992`<-as.numeric(as.character(wide_ABCD$`1992`))
+wide_ABCD$`1996`<-as.numeric(as.character(wide_ABCD$`1996`))
+wide_ABCD$`2004`<-as.numeric(as.character(wide_ABCD$`2004`))
+
+######
+
+PCOA_ABCD_averagesubset$field<-mapvalues(PCOA_ABCD_averagesubset$field, from=c("A", "B", "C", "D"), to=c("A (Last farmed 1968)", "B (Last farmed 1957)", "C (Last farmed in 1934)", "D (Never farmed)"))
+
+wide_ABCD$field<-mapvalues(wide_ABCD$field, from=c("A", "B", "C", "D"), to=c("A (Last farmed 1968)", "B (Last farmed 1957)", "C (Last farmed in 1934)", "D (Never farmed)"))
+
 
 ####
+mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title=element_text(size=12))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))+ theme(panel.grid.major = element_line(colour = "gray 85"))+ theme(panel.grid.minor = element_line(colour = "gray 95"))
 
 
-### PCOA ABCD both E001 and E002####
-
-PCOA_ABCD <- pcoa(distABCD)  ## takes a while##
-
-## extracting the axis scores for each exp##
-
-PCOAaxesABCD <- PCOA_ABCD$vectors[,c(1,2)]
+#subsetfor labels#
+PCOA_ABCD_averagesubset19822004<-subset(PCOA_ABCD_averagesubset, year==1982|year==2004)
 
 
-##merge the axis scores with the plot data ###
-
-PCOAandplotsABCD<-cbind(plotABCD,PCOAaxesABCD  )
-
-##PCOAandplotsABCD has the plot info and the PCOA scores for the entire experiment (E001 and E002, all three fields combined, with a subsetted selection of the ntrt treatments). ALSO INCLUDES FIELD D. Only goes up to 2004. ###
-
+PcOAdecadeABCD<-ggplot(data=PCOA_ABCD_averagesubset, aes(x=meanAxis1  , y=meanAxis2 , color=field)) +
+  geom_point(data=PCOA_ABCD_averagesubset, aes(x=meanAxis1  , y=meanAxis2 , group=field, label=as.factor(as.character(year))))+
+    geom_errorbar(data=PCOA_ABCD_averagesubset, aes(ymin=meanAxis2-seAxis2, ymax=meanAxis2+seAxis2), size=0.25) +
+  geom_errorbarh(data=PCOA_ABCD_averagesubset, aes(xmin=meanAxis1-seAxis1, xmax=meanAxis1+seAxis1),  size=0.25) +
+      geom_path(size=0.75, arrow = arrow(type = "open", angle = 30, length = unit(0.1, "inches")))+
+      geom_segment(data=wide_ABCD, aes(x=`1982`  , y=`1982`, xend =`1987`, yend = `1987`, color=field), arrow=arrow(length=unit(0.0, "cm"))) +
+        geom_segment(data=wide_ABCD, aes(x=`1987`  , y=`1987`, xend =`1992`, yend = `1992`, color=field), arrow=arrow(length=unit(0.0, "cm"))) +
+        geom_segment(data=wide_ABCD, aes(x=`1992`  , y=`1992`, xend =`1996`, yend = `1996`, color=field), arrow=arrow(length=unit(0.0, "cm"))) +
+        geom_segment(data=wide_ABCD, aes(x=`1996`  , y=`1996`, xend =`2004`, yend = `2004`, color=field), arrow=arrow(length=unit(0.0, "cm"))) +
+    ylab(expression(atop("", paste("PCoA 2"))))+
+    xlab("PCoA 1")+
+    xlim(-0.35,0.65)+
+   ylim(-0.4,0.25)+
+     mytheme+
+    theme(strip.background = element_blank())+
+    geom_text(data=PCOA_ABCD_averagesubset19822004, aes(label = as.factor(as.character(year)), group = field),size = 4,check_overlap = T,nudge_x = -0.08,
+  nudge_y = -0.02)
+      
 
 
 ```
 
 
 
-
-
+###CODE CHECKING GOT UP TO HERE on 10/31#######
 
 
 
@@ -1838,7 +1778,7 @@ head(bd_allboth_df2)
 
 groupdistancesboth2_df<-bd_allboth_df2%>% mutate(year2=year-1981)
 
-groupdistcontrol<-bd_allboth_df2%>% filter(ntrt==9)
+groupdistcontrol<-bd_allboth_df2%>% filter(ntrt==9)%>%mutate(year2=year-1981)
 
 
 ###E002 seperate by nutrient and experiment####
@@ -2079,11 +2019,11 @@ exp12subset<-subset(da.wide5,year<2005)
 
 ##get rid of years not all fields were sampeled###
 
-exp12subset_full<-exp12subset%>%filter(year!=1995)%>%filter(year!=1998)%>%filter(year!=2001)%>%filter(year!=2003)
+#exp12subset_full<-exp12subset%>%filter(year!=1995)%>%filter(year!=1998)%>%filter(year!=2001)%>%filter(year!=2003)
 
 ##just the veg data##
 
-veg_full<-exp12subset_full%>% dplyr::select(`mass.above.ACHILLEA MILLEFOLIUM(LANULOSA)`:`mass.above.VIOLA SP.`)
+veg_full<-exp12subset%>% dplyr::select(`mass.above.ACER NEGUNDO`:`mass.above.VIOLA SP.`)
 
 
 
@@ -2097,7 +2037,7 @@ logvegfull<-log(1+vegmatrixfull)
 
 ##using the apply function to calculation the dispersion (beta disp) for each nutrient treatment for each year#
 
-bd_allbothfull<-betadisper(vegdist(logvegfull),exp12subset_full$expntrtyear, type = "centroid")    ####Note that you have to specify the centroid ##  ##takes a bit##
+bd_allbothfull<-betadisper(vegdist(logvegfull),exp12subset$expntrtyear, type = "centroid")    ####Note that you have to specify the centroid ##  ##takes a bit##
 
 #bd_allbothEUC<-betadisper(vegdist(logveg, method="euclidean"),exp12subset_2$expntrtyear, type = "centroid")    ##same thing but in Euclidean distance###
 
@@ -2127,6 +2067,49 @@ bd_allbothfull_df2<-bd_allbothfull_df%>%mutate(ntrt2 = ntrt)
 
 
 ```
+
+
+### PLOT DISPERSION WITH ALL N TREATMENTS###
+```{r - recreate FIG 3ab, w/ ALL nutrient treatments (log data)}
+
+
+head(bd_allbothfull_df2)
+
+
+
+##### plot specifications###
+
+bd_allbothfull_df2$exp<-mapvalues(bd_allbothfull_df2$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+bd_allbothfull_df2$exp<- factor(bd_allbothfull_df2$exp, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+
+
+bd_allbothfull_df2$ntrt2  <- mapvalues(bd_allbothfull_df2$ntrt2, from=c("9", "1", "2", "3", "4","5","6", "7", "8"),
+                               to=c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+
+bd_allbothfull_df2$ntrt2 <- factor(bd_allbothfull_df2$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+
+
+
+mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title.x=element_text(size=12))+theme(axis.title.y=element_text(size=10))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))+ theme(panel.grid.major = element_line(colour = "gray 85"))+ theme(panel.grid.minor = element_line(colour = "gray 95"))
+
+
+disttocentroidplot<- ggplot(bd_allbothfull_df2) +
+    geom_point(data=bd_allbothfull_df2, aes(x=as.numeric(as.character(year)), y=distances, group=ntrt2, color=ntrt2)) +
+   geom_smooth(data=bd_allbothfull_df2,   aes(x=as.numeric(as.character(year)), y=distances, group=ntrt2, color=ntrt2), method="loess", se=FALSE) +
+   facet_grid(~exp)+ 
+    ylab(expression('Average distance to group centroid'))+
+    xlab("Time since experiment")+
+    mytheme+
+    theme(legend.position="right")+
+    theme(legend.title = element_blank()) + 
+    theme(strip.text = element_text(size=12, face="bold"))+
+     theme(strip.background = element_blank())
+
+```
+
+
 
 
 ###DISPERSION WITH ALL N TREATMENTS AND BY FIELD ###
@@ -2189,64 +2172,7 @@ bd_allbyfield_2_df<-bd_allbyfield_2_df%>%mutate(ntrt2 = ntrt)%>% mutate(year2=ye
 ```
 
 
-###FIT lines by all NTRT treatments and FIELD### ### not working...####
-```{r - model fits and error dist TO centroid, TABLE S2}
 
-
-head(bd_allbyfield_2_df)
-
-bd_allbyfield_df3<-bd_allbyfield_2_df%>% mutate(expfieldntrt= paste(exp, field, ntrt, sep = '_')) ## add identifier back in###
-
-### this doesn't work because some subset models do not converge...ugh###
-
-list_models <- lapply(split(bd_allbyfield_df3, bd_allbyfield_df3$expfieldntrt), function(x) nls(distances~ SSasymp(year2, Asym, R0, lrc), data = x, control = list(maxiter = 1500)))
-
-####
-
-
-
-
-```
-
-### PLOT DISPERSION WITH ALL N TREATMENTS###
-```{r - recreate FIG 3ab, w/ ALL nutrient treatments (log data)}
-
-
-head(bd_allbothfull_df2)
-
-
-
-##### plot specifications###
-
-bd_allbothfull_df2$exp<-mapvalues(bd_allbothfull_df2$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-bd_allbothfull_df2$exp<- factor(bd_allbothfull_df2$exp, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-
-
-bd_allbothfull_df2$ntrt2  <- mapvalues(bd_allbothfull_df2$ntrt2, from=c("9", "1", "2", "3", "4","5","6", "7", "8"),
-                               to=c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
-
-bd_allbothfull_df2$ntrt2 <- factor(bd_allbothfull_df2$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
-
-
-
-mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title.x=element_text(size=12))+theme(axis.title.y=element_text(size=10))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))+ theme(panel.grid.major = element_line(colour = "gray 85"))+ theme(panel.grid.minor = element_line(colour = "gray 95"))
-
-
-disttocentroidplot<- ggplot(bd_allbothfull_df2) +
-    geom_point(data=bd_allbothfull_df2, aes(x=as.numeric(as.character(year)), y=distances, group=ntrt2, color=ntrt2)) +
-   geom_smooth(data=bd_allbothfull_df2,   aes(x=as.numeric(as.character(year)), y=distances, group=ntrt2, color=ntrt2), method="loess", se=FALSE) +
-   facet_grid(~exp)+ 
-    ylab(expression('Average distance to group centroid'))+
-    xlab("Time since experiment")+
-    mytheme+
-    theme(legend.position="right")+
-    theme(legend.title = element_blank()) + 
-    theme(strip.text = element_text(size=12, face="bold"))+
-     theme(strip.background = element_blank())
-
-```
 
 ###PLOT DISPERSION WITH ALL N TREATMENTS AND BY FIELD ###
 ```{r - recreate FIG 3ab, w/ ALL nutrient treatments BY FIELD (log data)}
