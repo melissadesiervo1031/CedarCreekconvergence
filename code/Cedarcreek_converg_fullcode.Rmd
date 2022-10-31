@@ -30,7 +30,6 @@ library(indicspecies)
 library(BiodiversityR)
 
 
-##try again##
 
 ```{r aictable function}
 
@@ -660,7 +659,7 @@ da_fieldD_wide[is.na(da_fieldD_wide)] <- 0
 
 
 
-###PERMANOVA AND PCOA###
+###PERMANOVA AND PCOA SUBSETTING N gradient###
 
 ```{r - Conduct a PCoA using all the veg data across years (log)}
 
@@ -680,7 +679,7 @@ plot<-exp12subset_1_sorted%>% dplyr::select('field':'ntrt2')
 
 ##just the veg data##
 
-veg<-exp12subset_1_sorted%>% dplyr::select(`mass.above.ACHILLEA MILLEFOLIUM(LANULOSA)`:`mass.above.VIOLA SP.`)
+veg<-exp12subset_1_sorted%>% dplyr::select(`mass.above.ACER NEGUNDO`:`mass.above.VIOLA SP.`)
 
 
 
@@ -1015,7 +1014,7 @@ PcoAplayingfirst2<-PcoAplayingfirst2 %>% arrange(year)%>% arrange(exp)%>% arrang
 
 PcoAplayingfirst2$ntrt2  <- mapvalues(PcoAplayingfirst2$ntrt2, from=c("9", "1", "2", "3", "4","5","6"),
                                to=c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro"))
-PcoAplayingfirst$ntrt2 <- factor(PcoAplayingfirst$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro"))
+PcoAplayingfirst2$ntrt2 <- factor(PcoAplayingfirst2$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro"))
 
 wide_PcoAplaying1 <- pivot_wider(PcoAplayingfirst2, names_from = year, values_from = year)
 
@@ -1066,7 +1065,6 @@ PcOAdecade<-ggplot(data=PcoAplayingfirst2, aes(x=meanAxis1  , y=meanAxis2 , colo
     ylim(-0.5,0.15)+
     scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
     mytheme+
-    theme(legend.position="none")+
     scale_shape_manual(values = c(21, 22, 24))+
       theme(strip.background = element_blank())+
       geom_text(aes(x = -0.25, y = 0.14, label = abclabel, group =     abclabel),size = 4, color= "black", check_overlap = T)+theme(strip.text = element_blank())
@@ -1076,91 +1074,425 @@ PcOAdecade<-ggplot(data=PcoAplayingfirst2, aes(x=meanAxis1  , y=meanAxis2 , colo
 
 
 
-###CODE CHECKING GOT UP TO HERE on 10/27#######
+###PERMANOVA AND PCOA FULL N GRADIENT###
+
+```{r - Conduct a PCoA using all the veg data across years  FULL N GRADIENT (log)}
 
 
-###PCOA across years and all fields including field D ###
+exp12subset<-subset(da.wide5,year<2005)
 
-```{r - Conduct a PCoA fields ABCD (log)}
+##make nutrient and years factors#
 
-head(da_fieldD_3) #long form field D##
-head(d3woody)  ##long form fields ABC##
-
-
-###
-da_fieldD_3$exp<- 0
-
-###Stack datasets###
-
-fieldsABCDall<-dplyr::bind_rows(d3woody, da_fieldD_3)
-
-
-##subset to years before 2004###
-
-fieldsABCD1982_2004<-subset(fieldsABCDall, year<2005)
-
-
-# Transpose data to be a site by species matrix
-fieldsABCD_wide <- reshape(fieldsABCD1982_2004,
-                   v.names="mass.above",
-                   idvar=c("field", "exp", "plot", "year"),
-                   timevar="species",
-                   direction="wide") 
-
-# Fill in NA's with zeros in wide data set
-fieldsABCD_wide[is.na(fieldsABCD_wide)] <- 0
+exp12subset$ntrt<-as.factor(exp12subset$ntrt)
+exp12subset$year<-as.factor(exp12subset$year)
 
 
 ##arrange the dataframe so that that columns and rows are in right order##
-fieldsABCD_wide_sorted<-fieldsABCD_wide%>%arrange(year)%>%arrange(plot)%>%arrange(field)%>%arrange(exp)
+exp12subsetsorted<-exp12subset%>%arrange(year)%>%arrange(plot)%>%arrange(field)%>%arrange(exp)
 
 
 ##just the plot data##
-plotABCD<-fieldsABCD_wide_sorted%>% dplyr::select('field':'ntrt2')
+plot<-exp12subsetsorted%>% dplyr::select('field':'ntrt2')
 
 ##just the veg data##
 
-vegABCD<-fieldsABCD_wide_sorted%>% dplyr::select(`mass.above.ACER NEGUNDO`:`mass.above.SOLANUM DULCAMARA`)  ###double check selecting all veg columns##
+veg<-exp12subsetsorted%>% dplyr::select(`mass.above.ACER NEGUNDO`:`mass.above.VIOLA SP.`)
+
 
 
 ###log transformation####
 
-vegmatrixABCD<-as.matrix(vegABCD)
+vegmatrix<-as.matrix(veg)
 
-logvegABCD<-log(1+vegmatrixABCD)
+logveg<-log(1+vegmatrix)
 
 
 ## Bray curtis dissimiliarty matrix##
-distABCD<-vegdist(logvegABCD, method="bray")
+distE1andE2<-vegdist(logveg, method="bray")
+BCdistall<-as.matrix(distE1andE2)  ##into a matrix#
+BCdistalldf<-as.data.frame(BCdistall)  #into a dataframe#
 
-BCdistABCD<-as.matrix(distABCD)  ##into a matrix#
-BCdistABCDdf<-as.data.frame(BCdistABCD)  #into a dataframe#
+BCdistalldf2<-cbind(plot,BCdistalldf) #merge plot data w/ dissim matrix##
 
-BCdistABCDdf2<-cbind(plotABCD,BCdistABCDdf) #merge plot data w/ dissim matrix##
+##BCdistalldf2 has the plot info and the BC dissimilarity matrix for the entire experiment (E001 and E002, all three fields combined, with a subsetted selection of the ntrt treatments)
 
-####
+###PcOA for both E011 and E002 together####
 
+PCOA_allfieldE12_fullN <- pcoa(distE1andE2)  ## takes a while##
 
-### PCOA ABCD both E001 and E002####
+#PCOA_allfieldE12 <- cmdscale(distE1andE2)  ## Another way of doing the pcoa that gives same results#
 
-PCOA_ABCD <- pcoa(distABCD)  ## takes a while##
 
 ## extracting the axis scores for each exp##
 
-PCOAaxesABCD <- PCOA_ABCD$vectors[,c(1,2)]
+PCOAaxesboth_fullN <- PCOA_allfieldE12_fullN$vectors[,c(1,2)]
 
 
 ##merge the axis scores with the plot data ###
 
-PCOAandplotsABCD<-cbind(plotABCD,PCOAaxesABCD  )
+PCOAandplotsboth_fullN<-cbind(plot,PCOAaxesboth_fullN )
 
-##PCOAandplotsABCD has the plot info and the PCOA scores for the entire experiment (E001 and E002, all three fields combined, with a subsetted selection of the ntrt treatments). ALSO INCLUDES FIELD D. Only goes up to 2004. ###
+##PCOAandplotsboth_full N has the plot info and the PCOA scores for the entire experiment (E001 and E002, all three fields combined, wiah ALL of the ntrt treatments)
+
+
+
 
 
 
 ```
 
 
+
+```{r - Conduct permanova: nutrient, disturbance, field effect (log data) FULL N GRADIENT}
+
+exp12subset<-subset(da.wide5,year<2005)
+
+
+####for this analysis, getting rid of the years where not every field was sampeled##
+
+exp12subset_22<-exp12subset%>%filter(year!=1995)%>%filter(year!=1998)%>%filter(year!=2001)%>%filter(year!=2003)
+
+
+
+###log transform the biomass data###
+
+justveg<-as.matrix(exp12subset_22[,12:198])
+
+logveg<-log(1+justveg)
+
+exp12subset_22<-cbind(exp12subset_22[,1:11], logveg)
+
+
+
+### Extract two  years year to get the apply function to work#####
+
+da.wide_1990<-subset(exp12subset_22, year=="1990", row.names=NULL)
+
+da.wide_1999<-subset(exp12subset_22, year=="1999", row.names=NULL)
+
+###
+exp12subset_19821991<-subset(exp12subset_22, as.numeric(as.character(year)) < 1992)
+exp12subset_19922004<-subset(exp12subset_22, as.numeric(as.character(year)) >= 1992)
+
+#drop the levels not sampeled
+
+levels(exp12subset_19821991$year)
+exp12subset_19821991$year <- as.factor(as.character(exp12subset_19821991$year))
+
+
+levels(exp12subset_19922004$year)
+exp12subset_19922004$year <- as.factor(as.character(exp12subset_19922004$year))
+
+##Do a PERMANOVA looping over years, looking at effect of exp (disturbed or not), ntrt treatment# and field (A, B, C)###
+
+##need to do this in two batches because from 1992 on there are fewer plots..####
+
+###
+permallfields1<-lapply(X = split.data.frame(x = exp12subset_19821991, f=exp12subset_19821991$year),function(t){
+  z<-adonis2(vegdist(t[,11:198])~exp+ntrt+field, data= da.wide_1990)
+  return(data.frame(z))
+  }
+  )
+
+
+
+permallfields2<-lapply(X = split.data.frame(x = exp12subset_19922004, f=exp12subset_19922004$year),function(t){
+  z<-adonis2(vegdist(t[,11:198])~exp+ntrt+field, data= da.wide_1999)
+  return(data.frame(z))
+  }
+  )
+
+
+
+
+##dataframe of results##
+permmaster1<-plyr::ldply(permallfields1, data.frame)
+permmaster2<-plyr::ldply(permallfields2, data.frame)
+
+
+names<-c("Disturbance", "Fertilization", "Field", "residual", "total")
+
+sourcevariation<-rep(names,length(unique(permmaster1$.id)))
+
+permmaster11<-cbind(sourcevariation,permmaster1)
+
+sourcevariation<-rep(names,length(unique(permmaster2$.id)))
+
+permmaster22<-cbind(sourcevariation,permmaster2)
+
+###
+
+permmasterall<-rbind(permmaster11, permmaster22)
+  
+permmaster3_allnut<-subset(permmasterall,sourcevariation=="Disturbance"|sourcevariation=="Fertilization"|sourcevariation=="Field") 
+
+##This dataframe (permmmaster3_allnut) has the results from a permanova for each independent variable (disturbance, field, fertilization) for every year in the dataset w/ everything sampeled. The R2 column is what is plotted in Fig 1 ###
+
+
+
+```
+
+
+```{r - recreate FIG 1, R2 FULL N GRADIENT}
+
+
+permmaster3_allnut2<- permmaster3_allnut %>% mutate (year=as.numeric(.id))  %>% mutate (year2=year-1981)
+
+permmaster3_allnut2$sourcevariation<- factor(permmaster3_allnut2$sourcevariation, levels = c("Disturbance", "Fertilization", "Field"))
+
+my_plotlabels = paste0('(', letters, ') ')
+
+abclabels = paste0(my_plotlabels[1:length(levels(permmaster3_allnut2$sourcevariation))]) 
+
+permmaster5<-cbind(permmaster3_allnut2, abclabels)
+
+
+##make the plot##
+
+mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title=element_text(size=12))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))+ theme(panel.grid.major = element_line(colour = "gray 85"))+ theme(panel.grid.minor = element_line(colour = "gray 95"))
+
+
+
+
+variancetimeall_allnut<-permmaster5 %>% ggplot(aes(x=as.numeric(year2), y=R2, group=sourcevariation)) +
+    geom_point() +
+    facet_wrap(~sourcevariation, strip.position = c("top"))+
+    geom_smooth(method="loess", colour="black", size=0.5, fill = "gray1") +
+    geom_text(aes(x = 2.0, y = 0.54, label = abclabels, group =     abclabels),size = 4,check_overlap = T)+
+    ylab(expression('Explained variation'))+
+    xlab("Time since experiment (years)")+
+    mytheme+
+    theme(strip.text = element_text(face="bold", size=12))+
+     theme(strip.background = element_blank())
+
+   ###
+
+```
+
+
+```{r - recreate FIG 2, PCOA ordination by year FULL N GRADIENT}
+
+
+##PCOAandplotsE001 (and E002) have 11 colummns of plot data, PC0A axis 1 and 2 for each plot (in each year, field, subset of ntrt conditions)##
+
+
+PCOAandplotsboth_fullN
+
+
+
+#first check that there are 18 OR 9 in each ntrt treatment / year##
+PCOAandplotscount_fullN<-PCOAandplotsboth_fullN %>% count(year,disk,ntrt)
+
+####2003 for E002 only has 1 field so we remove it###
+
+PCOAandplotsboth2_fullN<-PCOAandplotsboth_fullN %>%filter(year!=2003)
+
+PCOAandplotscount2_fullN<-PCOAandplotsboth2_fullN %>% count(year,disk,ntrt)##good now###
+
+PCOAandplotsboth2_fullN$Axis.1<-as.numeric(PCOAandplotsboth2_fullN$Axis.1)
+PCOAandplotsboth2_fullN$Axis.2<-as.numeric(PCOAandplotsboth2_fullN$Axis.2)
+
+PCOAandplotsboth2_fullN$year<-as.numeric(as.character(PCOAandplotsboth2_fullN$year))
+
+
+
+PCOAandplotsavg_fullN<-PCOAandplotsboth2_fullN %>% group_by(exp,year,disk,ntrt) %>% dplyr::summarise(meanAxis1=mean(Axis.1, na.rm=TRUE),sdAxis1=sd(Axis.1, na.rm=TRUE),seAxis1=sd(Axis.1, na.rm=TRUE)/sqrt(n()),meanAxis2=mean(Axis.2, na.rm=TRUE),sdAxis2=sd(Axis.2, na.rm=TRUE),seAxis2=sd(Axis.2, na.rm=TRUE)/sqrt(n()), n=n())
+
+
+
+####
+
+## plot specifications
+
+PCOAandplotsavg2_fullN<-mutate(PCOAandplotsavg_fullN, ntrt2=ntrt)
+
+PCOAandplotsavg2_fullN$ntrt2<-PCOAandplotsavg2_fullN$ntrt
+
+
+
+PCOAandplotsavg2_fullN$ntrt2  <- mapvalues(PCOAandplotsavg2_fullN$ntrt2, from=c("9", "1", "2", "3", "4","5","6", "7", "8"),
+                               to=c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+
+PCOAandplotsavg2_fullN$ntrt2 <- factor(PCOAandplotsavg2_fullN$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+
+
+
+
+PCOAandplotsavg2_fullN<-PCOAandplotsavg2_fullN  %>% mutate(yearlabel=ifelse(year==1982|year==1992|year==2004,year, NA))%>%mutate(exp_ntrt= as.factor(paste(exp, ntrt, sep = '_')))
+
+PCOAandplotsavg2_fullN$exp_ntrt <- factor(PCOAandplotsavg2_fullN$exp_ntrt , levels = c("1_9", "2_9", "1_1","2_1", "1_2", "2_2","1_3", "2_3", "1_4", "2_4","1_5", "2_5", "1_6", "2_6", "1_7", "2_7", "1_8", "2_8"))
+
+PCOAandplotsavg3_fullN<-PCOAandplotsavg2_fullN %>% mutate(abclabel=exp_ntrt)
+levels(PCOAandplotsavg3_fullN$abclabel) <- c( "(a) ", "(b) ", "(c) ", "(d) ", "(e) ", "(f) ", "(g) ", "(h) ", "(i) ", "(j) ", "(k) ", "(l) ", "(m) ", "(n) ", "(o) ", "(p) ", "(q) ", "(r) ")
+
+
+PCOAandplotsavg3_fullN$disk<-plyr::mapvalues(PCOAandplotsavg3_fullN$disk, from=c("0", "1"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+
+
+
+##
+##to draw points between years###
+
+ann_textdisk3 <- data.frame(meanAxis1 = c(0.00, 0.00), meanAxis2 =c(0.27, 0.27),exp= c("Intact in 1982 (E001)","Disturbed in 1982 (E002)"), year=c(1982, 1982), exp_ntrt=c("1_9", "2_9"),abclabel = factor(c("(a) ","(b) " ),levels = c("(a) ", "(b) ", "(c) ", "(d) ", "(e) ", "(f) ", "(g) ", "(h) ", "(i) ", "(j) ", "(k) ", "(l) ", "(m) ", "(n) ", "(o) ", "(p) ", "(q) ", "(r) ")))
+
+#ann_textntrt <- data.frame(meanAxis1 = c(0.45, 0.45, 0.45, 0.45, 0.45,0.45,0.45,0.45,0.45), meanAxis2 =c(0.05, 0.05, 0.05, 0.05, 0.05,0.05,0.05,0.05,0.05),exp= c("2","2","2","2","2","2","2","2","2"), year=c(1982, 1982, 1982, 1982, 1982), exp_ntrt=c("2_9", "2_1", "2_2","2_3", "2_4","2_5", "2_6","2_7", "2_8"),abclabel = factor(c("(b) ","(d) ", "(f) ","(h) ","(j) " ,"l", "n", "p", "r"),levels = c("(a) ", "(b) ", "(c) ", "(d) ", "(e) ", "(f) ", "(g) ", "(h) ", "(i) ", "(j) ")))
+
+
+
+PcoAfieldAveragedE001E002_fullN<-ggplot(PCOAandplotsavg3_fullN[order(PCOAandplotsavg3_fullN$year),], aes(x=meanAxis1  , y=meanAxis2 , group=exp_ntrt, color=year, label=year)) +
+    geom_point(size=0.75) +
+    geom_errorbar(aes(ymin=meanAxis2-seAxis2, ymax=meanAxis2+seAxis2), color="dark gray", size=0.25) +
+    geom_errorbarh(aes(xmin=meanAxis1-seAxis1, xmax=meanAxis1+seAxis1), color="dark gray", size=0.25) +
+    geom_path(aes(x=meanAxis1 , y=meanAxis2 , group=exp_ntrt, color=year),size=0.5)+
+    geom_point(size=0.75) +
+    xlim(c(min(PCOAandplotsavg3_fullN$meanAxis1-PCOAandplotsavg3_fullN$seAxis1)),max(PCOAandplotsavg3_fullN$meanAxis1+PCOAandplotsavg3_fullN$seAxis1))+
+    ylim(c(min(PCOAandplotsavg3_fullN$meanAxis2-PCOAandplotsavg3_fullN$seAxis2)),max(PCOAandplotsavg3_fullN$meanAxis2+PCOAandplotsavg3_fullN$seAxis2))+
+    ylab("PCoA 2")+
+    xlab("PCoA 1")+
+    facet_grid(ntrt2~disk) + 
+    #geom_text(aes(label=yearlabel),position=position_jitter(width=0.05,height=0.05), color="black", size=2.5)+
+    mytheme+
+    scale_color_viridis(option = "D")+
+    scale_fill_viridis(option = "D",trans = 'reverse')+
+    guides(#reverse color order (higher value on top)
+    color = guide_colorbar(reverse = TRUE),
+    #reverse size order (higher diameter on top) 
+    size = guide_legend(reverse = TRUE))+
+   #scale_y_continuous(breaks=c(-0.2, 0.0, 0.2, 0.4))+
+    geom_text(aes(x = -0.26, y = 0.16, label = abclabel, group =     abclabel),size = 3,check_overlap = T)+
+    theme(strip.background = element_blank())+
+    theme(strip.text = element_text(face="bold", size=10))+
+    theme(panel.spacing.y=unit(0.5, "lines"))
+    #geom_text_repel(aes(label=yearlabel),size = 2.5, color="black")
+
+
+```
+
+
+```{r - recreate FIG 4 cd, PCoA by decade FULL N GRADIENT}
+
+
+PCOAandplotsavg_fullN<-PCOAandplotsboth_fullN %>% group_by(exp,year,disk,ntrt) %>% dplyr::summarise(meanAxis1=mean(Axis.1, na.rm=TRUE),sdAxis1=sd(Axis.1, na.rm=TRUE),seAxis1=sd(Axis.1, na.rm=TRUE)/sqrt(n()),meanAxis2=mean(Axis.2, na.rm=TRUE),sdAxis2=sd(Axis.2, na.rm=TRUE),seAxis2=sd(Axis.2, na.rm=TRUE)/sqrt(n()), n=n())
+
+
+###get rid of years where we don't have 9 or 18 plots###
+####2003 for E002 only has 1 field, so remove it###
+
+PCOAandplotsavg2_fullN<-subset(PCOAandplotsavg_fullN, n>8)
+
+
+PCOAandplotsavg2_fullN<-PCOAandplotsavg2_fullN  %>% mutate(yearlabel=ifelse(year==1982|year==1988|year==1992|year==2004,year, NA))
+
+######
+
+##by decade####
+
+PcoAplaying_fullN <- PCOAandplotsavg2_fullN %>% filter(year %in% c(1982,2004))
+
+arrow_start_fullN <- PCOAandplotsavg2_fullN %>% filter(year ==1982)
+arrow_stop_fullN<- PCOAandplotsavg2_fullN %>% filter(year == 2004)
+
+wide_PcoAplaying_fullN <- pivot_wider(PcoAplaying_fullN, names_from = year, values_from = year)
+
+##just pull out the first year of data##
+
+PCOAandplots1982_fullN<-subset(PCOAandplotsavg2_fullN, year==1982)
+
+##pull out the first, last, and midpoint year##
+
+PCOAandplots198219922004_fullN<-subset(PCOAandplotsavg2_fullN, year==1982|year==1992|year==2004)
+
+PCOAandplots198219922004_fullN<-PCOAandplots198219922004_fullN %>% mutate(abclabel=exp)%>% mutate(ntrt2=ntrt) %>%  mutate(expntrt= paste(exp, ntrt, sep = '_'))
+
+levels(PCOAandplots198219922004_fullN$abclabel) <- c( "(a) ", "(b) ")
+
+
+PCOAandplots198219922004_fullN$ntrt2  <- mapvalues(PCOAandplots198219922004_fullN$ntrt2, from=c("9", "1", "2", "3", "4","5","6", "7", "8"),
+                               to=c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+
+PCOAandplots198219922004_fullN$ntrt2 <- factor(PCOAandplots198219922004_fullN$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+
+
+
+
+#first arrow and second##
+PcoAplayingfirst_fullN <- PCOAandplotsavg2_fullN %>% filter(year %in% c(1982,1992, 2004))
+
+PcoAplayingfirst2_fullN<-PcoAplayingfirst_fullN %>% mutate(abclabel=exp)
+levels(PcoAplayingfirst2_fullN$abclabel) <- c( "(c) ", "(d) ")
+
+#make sure its in the right order##
+PcoAplayingfirst2_fullN<-PcoAplayingfirst2_fullN %>% arrange(year)%>% arrange(exp)%>% arrange(ntrt)%>% mutate(ntrt2=ntrt) %>%  mutate(expntrt= paste(exp, ntrt, sep = '_'))
+
+
+
+
+PcoAplayingfirst2_fullN$ntrt2  <- mapvalues(PcoAplayingfirst2_fullN$ntrt2, from=c("9", "1", "2", "3", "4","5","6", "7", "8"),
+                               to=c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+
+PcoAplayingfirst2_fullN$ntrt2 <- factor(PcoAplayingfirst2_fullN$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+
+
+
+
+wide_PcoAplaying1 <- pivot_wider(PcoAplayingfirst2_fullN, names_from = year, values_from = year)
+
+wide_PcoAplaying1$`1982`<-as.numeric(as.character(wide_PcoAplaying1$`1982`))
+wide_PcoAplaying1$`1992`<-as.numeric(as.character(wide_PcoAplaying1$`1992`))
+wide_PcoAplaying1$`2004`<-as.numeric(as.character(wide_PcoAplaying1$`2004`))
+
+
+PCOAandplotslabels_fullN<-subset(PcoAplayingfirst2_fullN, ntrt==4)
+PCOAandplotslabels_fullN<-PCOAandplotslabels_fullN%>%  mutate(expntrt= paste(exp, ntrt, sep = '_'))%>%  mutate(yearlabel= year)
+
+
+######
+
+## plot specifications
+
+
+
+PCOAandplotsavg2_fullN$disk<-mapvalues(PCOAandplotsavg2_fullN$disk, from=c("0", "1"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+
+
+ann_textdisk2 <- data.frame(meanAxis1 = c(0.03, 0.03), meanAxis2 =c(0.27,0.27),exp= c("Intact in 1982 (E001)","Disturbed in 1982 (E002)"), ntrt2=c("None", "None"), expntrt=c("1_9" ,"2_9"), abclabel = factor(c("(a) ","(b) " ),levels = c("(c) ", "(d) ")))
+
+
+####
+mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title=element_text(size=12))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))+ theme(panel.grid.major = element_line(colour = "gray 85"))+ theme(panel.grid.minor = element_line(colour = "gray 95"))
+
+
+PcOAdecade_fullN<-ggplot(data=PcoAplayingfirst2_fullN, aes(x=meanAxis1  , y=meanAxis2 , color=ntrt2)) +
+  geom_hline(yintercept = 0)+geom_vline(xintercept = 0)+
+  geom_point(data=PCOAandplots198219922004_fullN, aes(x=meanAxis1  , y=meanAxis2 , group=ntrt2, shape=as.factor(year)), size=2)+
+    geom_errorbar(data=PCOAandplots198219922004_fullN, aes(ymin=meanAxis2-seAxis2, ymax=meanAxis2+seAxis2,color=ntrt2), size=0.25) +
+  geom_errorbarh(data=PCOAandplots198219922004_fullN, aes(xmin=meanAxis1-seAxis1, xmax=meanAxis1+seAxis1,color=ntrt2),  size=0.25) +
+  geom_point(data=PCOAandplots198219922004_fullN, aes(x=meanAxis1  , y=meanAxis2 , group=ntrt2,color=ntrt2,shape=as.factor(year)))+
+  geom_segment(data=wide_PcoAplaying1, aes(x=`1982`  , y=`1982`, xend =`1992`, yend = `1992`, color=ntrt2), arrow=arrow(length=unit(0.0, "cm"))) +
+    geom_path(size=0.75, arrow = arrow(type = "open", angle = 30, length = unit(0.1, "inches")))+
+      geom_segment(data=wide_PcoAplaying1, aes(x=`1992`  , y=`1992`, xend =`2004`, yend = `2004`, color=ntrt2), arrow=arrow(length=unit(0.0, "cm"))) +
+    geom_path(size=0.75, arrow = arrow(type = "open", angle = 30, length = unit(0.1, "inches")))+
+          geom_text(data=PCOAandplotslabels, aes(label=yearlabel),position = position_nudge(y = 0.001, x=0.02), color="black", size=3.0)+
+    #ylab("PCoA 2")+
+    ylab(expression(atop("", paste("PCoA 2"))))+
+    xlab("PCoA 1")+
+    facet_grid(~disk) + 
+    xlim(-0.28,0.55)+
+    ylim(-0.5,0.18)+
+      mytheme+
+    scale_shape_manual(values = c(21, 22, 24))+
+      theme(strip.background = element_blank())+
+      geom_text(aes(x = -0.25, y = 0.14, label = abclabel, group =     abclabel),size = 4, color= "black", check_overlap = T)+theme(strip.text = element_blank())
+
+
+```
+
+
+
+
+###CODE CHECKING GOT UP TO HERE on 10/27#######
 
 
 
@@ -1316,6 +1648,96 @@ NMDS_ABCD_species<-ggplot(sig.sppdf)+
 
 
 ```
+
+
+
+
+
+
+###PCOA across years and all fields including field D ###
+
+```{r - Conduct a PCoA fields ABCD (log)}
+
+head(da_fieldD_3) #long form field D##
+head(d3woody)  ##long form fields ABC##
+
+
+###
+da_fieldD_3$exp<- 0
+
+###Stack datasets###
+
+fieldsABCDall<-dplyr::bind_rows(d3woody, da_fieldD_3)
+
+
+##subset to years before 2004###
+
+fieldsABCD1982_2004<-subset(fieldsABCDall, year<2005)
+
+
+# Transpose data to be a site by species matrix
+fieldsABCD_wide <- reshape(fieldsABCD1982_2004,
+                   v.names="mass.above",
+                   idvar=c("field", "exp", "plot", "year"),
+                   timevar="species",
+                   direction="wide") 
+
+# Fill in NA's with zeros in wide data set
+fieldsABCD_wide[is.na(fieldsABCD_wide)] <- 0
+
+
+##arrange the dataframe so that that columns and rows are in right order##
+fieldsABCD_wide_sorted<-fieldsABCD_wide%>%arrange(year)%>%arrange(plot)%>%arrange(field)%>%arrange(exp)
+
+
+##just the plot data##
+plotABCD<-fieldsABCD_wide_sorted%>% dplyr::select('field':'ntrt2')
+
+##just the veg data##
+
+vegABCD<-fieldsABCD_wide_sorted%>% dplyr::select(`mass.above.ACER NEGUNDO`:`mass.above.SOLANUM DULCAMARA`)  ###double check selecting all veg columns##
+
+
+###log transformation####
+
+vegmatrixABCD<-as.matrix(vegABCD)
+
+logvegABCD<-log(1+vegmatrixABCD)
+
+
+## Bray curtis dissimiliarty matrix##
+distABCD<-vegdist(logvegABCD, method="bray")
+
+BCdistABCD<-as.matrix(distABCD)  ##into a matrix#
+BCdistABCDdf<-as.data.frame(BCdistABCD)  #into a dataframe#
+
+BCdistABCDdf2<-cbind(plotABCD,BCdistABCDdf) #merge plot data w/ dissim matrix##
+
+####
+
+
+### PCOA ABCD both E001 and E002####
+
+PCOA_ABCD <- pcoa(distABCD)  ## takes a while##
+
+## extracting the axis scores for each exp##
+
+PCOAaxesABCD <- PCOA_ABCD$vectors[,c(1,2)]
+
+
+##merge the axis scores with the plot data ###
+
+PCOAandplotsABCD<-cbind(plotABCD,PCOAaxesABCD  )
+
+##PCOAandplotsABCD has the plot info and the PCOA scores for the entire experiment (E001 and E002, all three fields combined, with a subsetted selection of the ntrt treatments). ALSO INCLUDES FIELD D. Only goes up to 2004. ###
+
+
+
+```
+
+
+
+
 
 
 
