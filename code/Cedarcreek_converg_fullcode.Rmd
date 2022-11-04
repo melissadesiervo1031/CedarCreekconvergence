@@ -290,11 +290,13 @@ plotcountcheck<-da_origsiteyear%>%group_by(exp, field, year) %>%  tally()
 plotcountcheck2<-da_origsiteyear%>%group_by(exp, year) %>%  tally()
 
 
-sum(plotcountcheck$n)  ## 6396 total plot  years to be analyzed with full times series (note that this includes the E/W subplots that are compiled later...#### 
-
 plotcountcheck19822004<-subset(plotcountcheck, year < 2005)
 
 sum(plotcountcheck19822004$n) #  6102 total plots-years 1982 to 2004 #### matches exactly w/ excel file## :-) 
+
+sum(plotcountcheck$n)  ## 6396 total plot  years to be analyzed with full times series (note that this includes the E/W subplots that are compiled later...#### 
+
+
 
 ################# TAXONOMIC AND OTHER SMALL DATA FIXES####################
 
@@ -503,6 +505,14 @@ da.wide5<-da.wide_allwhole%>%arrange(year)%>%arrange(plot)%>%arrange(exp)%>%arra
 ##### Check that the max number of rep within a treatment is 18, since 6 plots in each field and exp recieved the same N treatment##
 
 max(ave(da.wide5$plot, da.wide5$expntrtyear,FUN = seq_along))
+
+
+####check the plotyears####
+
+
+plotcountcheck5<-da.wide5%>%group_by(exp, field, year) %>%  tally()
+
+plotcountcheck2<-da_origsiteyear%>%group_by(exp, year) %>%  tally()
 
 
 ##This data frame (da.wide5) has fields A, B, C, experiment 1 (intact) & exp 2 (disked in 1982) ## years 1982 - 2019 for E002 and years 1982 - 2004 for exp E001 (not every field / exp sampeled in every year## INCLUDES WOODY PLANTS
@@ -1234,6 +1244,109 @@ permmaster3_allnut<-subset(permmasterall,sourcevariation=="Disturbance"|sourceva
 ```
 
 
+```{r - Conduct permanova w/ blocking: nutrient, disturbance, field effect (log data) FULL N GRADIENT}
+
+exp12subset<-subset(da.wide5,year<2005)
+
+
+####for this analysis, getting rid of the years where not every field was sampeled##
+
+exp12subset_22<-exp12subset%>%filter(year!=1995)%>%filter(year!=1998)%>%filter(year!=2001)%>%filter(year!=2003)
+
+
+
+###log transform the biomass data###
+
+justveg<-as.matrix(exp12subset_22[,12:198])
+
+logveg<-log(1+justveg)
+
+exp12subset_22<-cbind(exp12subset_22[,1:11], logveg)
+
+
+
+### Extract two  years year to get the apply function to work#####
+
+da.wide_1990<-subset(exp12subset_22, year=="1990", row.names=NULL)
+
+da.wide_1999<-subset(exp12subset_22, year=="1999", row.names=NULL)
+
+###
+exp12subset_19821991<-subset(exp12subset_22, as.numeric(as.character(year)) < 1992)
+exp12subset_19922004<-subset(exp12subset_22, as.numeric(as.character(year)) >= 1992)
+
+#drop the levels not sampeled
+
+levels(exp12subset_19821991$year)
+exp12subset_19821991$year <- as.factor(as.character(exp12subset_19821991$year))
+
+
+levels(exp12subset_19922004$year)
+exp12subset_19922004$year <- as.factor(as.character(exp12subset_19922004$year))
+
+##Do a PERMANOVA looping over years, looking at effect of exp (disturbed or not), ntrt treatment# and field (A, B, C)###
+
+##need to do this in two batches because from 1992 on there are fewer plots..####
+
+
+adonis2(Y ~ fish + season*year, data=metadata, perm= how(blocks = metadata$valley, plots = Plots(strata = metadata$lake), within = Within(type = "series"), nperm=9999), by="margin")
+
+### If we restrict permutations, I don't think we can use field as fixed effect###
+
+#perm= how(blocks = metadata$valley, plots = Plots(strata = metadata$lake)
+
+##not working..hmmm###
+
+
+###
+permallfieldstry1<-lapply(X = split.data.frame(x = exp12subset_19821991, f=exp12subset_19821991$year),function(t){
+  z<-adonis2(vegdist(t[,11:198])~exp+ntrt,  data= da.wide_1990, strata=field)
+  return(data.frame(z))
+  }
+  )
+
+
+
+permallfields2<-lapply(X = split.data.frame(x = exp12subset_19922004, f=exp12subset_19922004$year),function(t){
+  z<-adonis2(vegdist(t[,11:198])~exp+ntrt+field, data= da.wide_1999)
+  return(data.frame(z))
+  }
+  )
+
+
+
+
+##dataframe of results##
+permmaster1<-plyr::ldply(permallfields1, data.frame)
+permmaster2<-plyr::ldply(permallfields2, data.frame)
+
+
+names<-c("Disturbance", "Fertilization", "Field", "residual", "total")
+
+sourcevariation<-rep(names,length(unique(permmaster1$.id)))
+
+permmaster11<-cbind(sourcevariation,permmaster1)
+
+sourcevariation<-rep(names,length(unique(permmaster2$.id)))
+
+permmaster22<-cbind(sourcevariation,permmaster2)
+
+###
+
+permmasterall<-rbind(permmaster11, permmaster22)
+  
+permmaster3_allnut<-subset(permmasterall,sourcevariation=="Disturbance"|sourcevariation=="Fertilization"|sourcevariation=="Field") 
+
+##This dataframe (permmmaster3_allnut) has the results from a permanova for each independent variable (disturbance, field, fertilization) for every year in the dataset w/ everything sampeled. The R2 column is what is plotted in Fig 1 ###
+
+
+
+```
+
+
+
+
+
 ```{r - recreate FIG 1, R2 FULL N GRADIENT}
 
 
@@ -1492,10 +1605,6 @@ PcOAdecade_fullN<-ggplot(data=PcoAplayingfirst2_fullN, aes(x=meanAxis1  , y=mean
 
 
 
-
-
-
-
 ###PCOA across years controls and field D ###
 
 ```{r - Conduct a PCoA just controls plots over time (log)}
@@ -1676,9 +1785,6 @@ PcOAdecadeABCD<-ggplot(data=PCOA_ABCD_averagesubset, aes(x=meanAxis1  , y=meanAx
 
 ```
 
-
-
-###CODE CHECKING GOT UP TO HERE on 10/31#######
 
 
 
@@ -2111,7 +2217,6 @@ disttocentroidplot<- ggplot(bd_allbothfull_df2) +
 
 
 
-
 ###DISPERSION WITH ALL N TREATMENTS AND BY FIELD ###
 ```{r - Calculate the distance TO centroid within ntrt treatments all treatments (log data)}
 
@@ -2122,6 +2227,19 @@ disttocentroidplot<- ggplot(bd_allbothfull_df2) +
 ##START W/ DATA SET FOR E001 that only goes to 2004, and E002 to 2019 (fields A and C)##
 
 head(da.wide5)
+
+####check the plotyears####
+
+
+plotcountcheck5<-da.wide5%>%group_by(exp, field, year) %>%  tally()
+
+plotcountcheck55<-da.wide5%>%group_by(exp, year) %>%  tally()
+
+###### time series only extends > 2004 for E002###
+
+
+##plot data##
+plot_full<-da.wide5%>%dplyr::select(field:expntrtyear) %>% mutate(expfieldplotyear= paste(exp,field,plot,year, sep = '_'))
 
 ##just the veg data##
 
@@ -2139,7 +2257,7 @@ logvegfull<-log(1+vegmatrixfull)
 
 ##using the apply function to calculation the dispersion (beta disp) for each nutrient treatment for each FIELD for each year#
 
-bd_allbyfield<-betadisper(vegdist(logvegfull),exp12004exp2full$expntrtfieldyear, type = "centroid")    ####Note that you have to specify the centroid ##  ##takes a VERY LONG TIME ##
+bd_allbyfield<-betadisper(vegdist(logvegfull),plot_full$expntrtfieldyear, type = "centroid")    ####Note that you have to specify the centroid ##  ##takes a VERY LONG TIME ##
 
 #bd_allbothEUC<-betadisper(vegdist(logveg, method="euclidean"),exp12subset_2$expntrtyear, type = "centroid")    ##same thing but in Euclidean distance###
 
@@ -2173,7 +2291,6 @@ bd_allbyfield_2_df<-bd_allbyfield_2_df%>%mutate(ntrt2 = ntrt)%>% mutate(year2=ye
 
 
 
-
 ###PLOT DISPERSION WITH ALL N TREATMENTS AND BY FIELD ###
 ```{r - recreate FIG 3ab, w/ ALL nutrient treatments BY FIELD (log data)}
 
@@ -2197,6 +2314,7 @@ bd_allbyfield_2_df$ntrt2 <- factor(bd_allbyfield_2_df$ntrt2, levels = c("None", 
 
 
 
+
 mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title.x=element_text(size=12))+theme(axis.title.y=element_text(size=10))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))+ theme(panel.grid.major = element_line(colour = "gray 85"))+ theme(panel.grid.minor = element_line(colour = "gray 95"))
 
 
@@ -2212,7 +2330,70 @@ disttocentroidplotBYFIELD<- ggplot(bd_allbyfield_2_df, aes(x=year2, y=distances,
     theme(strip.text = element_text(size=12, face="bold"))+
      theme(strip.background = element_blank())
 
+
+
+disttocentroidplotBYFIELD_2<- ggplot(bd_allbyfield_2_df, aes(x=year2, y=distances)) +
+    geom_point()  +
+   geom_smooth(method="lm", se=FALSE) +
+   facet_grid(vars(field), vars(exp))+ 
+    ylab(expression('Average distance to group centroid'))+
+    xlab("Time since experiment")+
+    mytheme+
+    theme(legend.position="right")+
+    theme(legend.title = element_blank()) + 
+    theme(strip.text = element_text(size=12, face="bold"))+
+     theme(strip.background = element_blank())
+
+
 ```
+
+
+
+
+##let's see whats going on with E001 field C compared to B...###
+
+
+```{r - Exploring E001 field C (versus field B) }
+
+##PCOAandplotsboth_fullN###
+
+head(PCOAandplotsboth_fullN)
+
+head(bd_allbyfield_2_df)
+
+
+#### just pull out E001 field B and C subset of years: 1982, 1992, 2004 ####
+
+
+PCOAandplotsE001ABsubset<-PCOAandplotsboth_fullN %>% filter(exp==1)%>% filter(field=="B"|field=="C")%>% filter(year=="1982"|year=="1994"|year=="2004")
+
+
+groupcentroidssubset<- bd_allbyfield_2_df%>% filter(exp=="Intact in 1982 (E001)")%>% filter(field=="B"|field=="C")%>% filter(year==1982|year==1994|year==2004)
+
+
+#getting the convex hull of each unique point set
+hull <- PCOAandplotsE001ABsubset %>% group_by(field, ntrt,year) %>% 
+  slice(chull(Axis.1,Axis.2))
+
+
+E001fieldBandC<-ggplot(PCOAandplotsE001ABsubset, aes(x=Axis.1, y=Axis.2, color=ntrt, fill=ntrt)) +
+    geom_point() +
+    geom_polygon(data = hull, alpha = 0.5)+
+    ylab("PCoA 2")+
+    xlab("PCoA 1")+
+    mytheme+
+    facet_grid(vars(year), vars(field))+ 
+    theme(strip.background = element_blank())+
+    theme(strip.text = element_text(face="bold", size=10))+
+    theme(panel.spacing.y=unit(0.5, "lines"))
+    #geom_text_repel(aes(label=yearlabel),size = 2.5, color="black")
+
+
+
+
+```
+
+######## DISTANCE BETWEEN CENTROIDS#############
 
 ```{r - Calculate the distance BTWN centroids (logdata) }
 
@@ -2249,44 +2430,6 @@ centroiddists<-centroiddf_4%>% group_by(expyear) %>% dplyr::summarise(meandist=m
 
 
 ##this dataframe (centroidsdists) has the average distance between nutrient group centroids for each year, for each experiment####
-
-```
-
-```{r - Calculate the distance BTWN centroids BY field (logdata) }
-
-##pulling out the group centroids by year####
-
-centroiddf_byfield<-as.data.frame(bd_allbyfield[["centroids"]])
-
-centroiddf_byfield_2<-centroiddf_byfield[,1:2]
-
-centroiddf_byfield_2 <- tibble::rownames_to_column(centroiddf_byfield_2, "expfieldntrtyear")
-
-centroiddf_byfield_2<-separate(data = centroiddf_byfield_2, col = expfieldntrtyear, into = c("exp","field", "ntrt", "year"))
-
-centroiddf_byfield_3<-centroiddf_byfield_2%>% mutate(expfieldyear= paste(exp,field,year, sep = '_')) 
-
-
-###grand mean centroid for all treatments in each field in each year###
-
-grandcentroidbyfield<-centroiddf_byfield_3%>% group_by(exp, field, year) %>% dplyr::summarise(PcoA1centroid=mean(PCoA1, na.rm=TRUE),PcoA2centroid=mean(PCoA2, na.rm=TRUE))%>% mutate(expfieldyear= paste(exp,field,year, sep = '_')) 
-
-
-### merge the treatments means with the grand mean centroid for each year##
-
-centroiddf_byfield_33<-merge(data.frame(centroiddf_byfield_3), data.frame(grandcentroidbyfield), by = "expfieldyear", all = TRUE)
-
-###calculate the distance from each centroid to grand centroid using pythagoreum theorem###
-
-centroiddf_byfield_4<-centroiddf_byfield_33 %>% mutate(distgrandcent=sqrt((PcoA1centroid- PCoA1)^2+(PcoA2centroid-PCoA2)^2))
-
-
-###average distance of each group to its grand mean##
-
-centroiddistsbyfield<-centroiddf_byfield_4%>% group_by(expfieldyear) %>% dplyr::summarise(meandist=mean(distgrandcent, na.rm=TRUE))%>%separate(col = expfieldyear, into = c("exp", "field", "year"))
-
-
-##this dataframe (centroidsdistsby field) has the average distance between nutrient group centroids for each year, for each field, for each experiment####
 
 ```
 
@@ -2400,31 +2543,179 @@ distbetweencentroids<-ggplot(data=centroiddists_3,aes(x=as.numeric(as.character(
 
 ```
 
-#### DISPERSION BY FIELD WITH ALL NUTRIENT TREATMENTS####
-```{r - recreate FIG 3 cd, distance BTWN centroids BY FIELD (logdata)}
 
 
-head(centroiddistsbyfield)
-
-centroiddistsbyfield$exp<-mapvalues(centroiddistsbyfield$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-centroiddistsbyfield$exp<- factor(centroiddistsbyfield$exp, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+######## DISTANCE BETWEEN CENTROIDS ALL N ###
 
 
+###DISPERSION WITH ALL N TREATMENTS###
+```{r - Calculate the distance BETWEEM centroids all ntrt treatments all treatments (log data)}
 
-distbetweencentroidsbyfield<-ggplot(data=centroiddistsbyfield,aes(x=as.numeric(as.character(year)),y=meandist)) +
-    geom_point() +
-    facet_grid(vars(field), vars(exp))+
-    geom_smooth(method="loess", se=FALSE)+ 
-    ylab(expression('Average distance between group centroids'))+
-    xlab("Time since experiment (years)")+
-    theme(legend.position="none")+
-    mytheme
+
+bd_allbothfull_df2<-bd_allbothfull_df%>%mutate(ntrt2 = ntrt)
+
+
+##pulling out the group centroids by year####
+
+centroiddf_full<-as.data.frame(bd_allbothfull[["centroids"]])
+
+centroiddf_full_2<-centroiddf_full[,1:2]
+
+centroiddf_full_2<- tibble::rownames_to_column(centroiddf_full_2, "expntrtyear")
+
+centroiddf_full_2<-separate(data = centroiddf_full_2, col = expntrtyear, into = c("exp", "ntrt", "year"))
+
+centroiddf_full_3<-centroiddf_full_2%>% mutate(expyear= paste(exp,year, sep = '_')) 
+
+
+###grand mean centroid for all treatments each year###
+
+grandcentroid_full<-centroiddf_full_3%>% group_by(exp, year) %>% dplyr::summarise(PcoA1centroid=mean(PCoA1, na.rm=TRUE),PcoA2centroid=mean(PCoA2, na.rm=TRUE))%>% mutate(expyear= paste(exp,year, sep = '_')) 
+
+
+### merge the treatments means with the grand mean centroid for each year##
+
+centroiddf_full<-merge(data.frame(centroiddf_full_3), data.frame(grandcentroid_full), by = "expyear", all = TRUE)
+
+###calculate the distance from each centroid to grand centroid using pythagoreum theorem###
+
+centroiddf_full_4<-centroiddf_full %>% mutate(distgrandcent=sqrt((PcoA1centroid- PCoA1)^2+(PcoA2centroid-PCoA2)^2))
+
+
+###average distance of each group to its grand mean##
+
+centroiddists_full<-centroiddf_full_4%>% group_by(expyear) %>% dplyr::summarise(meandist=mean(distgrandcent, na.rm=TRUE))%>%separate(col = expyear, into = c("exp", "year"))
+
+
+
+
 
 
 
 ```
 
+
+```{r - recreate FIG 3 cd, distance BTWN centroids all ntrt treatmetns (logdata)}
+
+centroiddists_full$year<-as.numeric(as.character(centroiddists_full$year))
+
+centroiddists_full_2<-centroiddists_full%>% mutate(year2=year-1981)
+
+
+####subset by exp###
+
+centroiddists_full_E001<-subset(centroiddists_full, exp==1)
+centroiddists_full_E002<-subset(centroiddists_full, exp==2)
+
+
+###https://www.r-bloggers.com/2021/07/asymptotic-confidence-intervals-for-nls-regression-in-r/##
+
+#asympfitcentroidE001_full<- nls(meandist~ SSasymp(year2, Asym, R0, lrc), data = centroiddists_full_E001)
+
+#asympfitcentroidE002_full <- nls(meandist~ SSasymp(year2, Asym, R0, lrc), data = centroiddists_full_E002)
+
+
+
+###for plotting####
+
+
+
+
+centroiddists_full$exp<-mapvalues(centroiddists_full$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+centroiddists_full$exp<- factor(centroiddists_full$exp, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+
+
+distbetweencentroids_fullN<-ggplot(data=centroiddists_full_2,aes(x=as.numeric(as.character(year2)),y=meandist)) +
+    geom_point() +
+    facet_grid(~exp) +
+    ylab(expression('Average distance between group centroids'))+
+    xlab("Time since experiment (years)")+
+    geom_smooth(method="loess")+
+    theme(legend.position="none")+
+     theme(strip.text = element_blank())+
+     theme(strip.background = element_blank())+
+    mytheme
+ 
+  
+
+
+
+```
+
+
+
+######## DISTANCE BETWEEN CENTROIDS ALL N and BY FIELD###
+
+```{r - recreate FIG 3 cd, distance BTWN centroids BY FIELD (logdata)}
+
+head(bd_allbyfield_2_df)
+
+
+##pulling out the group centroids by year####
+
+centroidbyfield<-as.data.frame(bd_allbyfield[["centroids"]])
+
+centroiddfbyfield_2<-centroidbyfield[,1:2]
+
+centroiddfbyfield_2<- tibble::rownames_to_column(centroiddfbyfield_2, "expfieldntrtyear")
+
+centroiddfbyfield_2<-separate(data = centroiddfbyfield_2, col = expfieldntrtyear, into = c("exp", "field", "ntrt", "year"))
+
+centroiddfbyfield_3<-centroiddfbyfield_2%>% mutate(expfieldyear= paste(exp,field,year, sep = '_')) 
+####
+
+
+
+###grand mean centroid for all fields and treatments each year###
+
+grandcentroidbyfield_full<-centroiddfbyfield_3%>% group_by(exp, field,year) %>% dplyr::summarise(PcoA1centroid=mean(PCoA1, na.rm=TRUE),PcoA2centroid=mean(PCoA2, na.rm=TRUE))%>% mutate(expfieldyear= paste(exp,field,year, sep = '_')) 
+
+
+### merge the treatments means with the grand mean centroid for each year##
+
+centroiddfbyfield_full<-merge(data.frame(centroiddfbyfield_3), data.frame(grandcentroidbyfield_full), by = "expfieldyear", all = TRUE)
+
+###calculate the distance from each centroid to grand centroid using pythagoreum theorem###
+
+centroiddfbyfield_full_4<-centroiddfbyfield_full %>% mutate(distgrandcent=sqrt((PcoA1centroid- PCoA1)^2+(PcoA2centroid-PCoA2)^2))
+
+
+###average distance of each group to its grand mean##
+
+centroiddistsbyfield_full<-centroiddfbyfield_full_4%>% group_by(expfieldyear) %>% dplyr::summarise(meandist=mean(distgrandcent, na.rm=TRUE))%>%separate(col = expfieldyear, into = c("exp","field", "year"))
+
+
+
+centroiddistsbyfield_full$exp<-mapvalues(centroiddistsbyfield_full$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+centroiddistsbyfield_full$exp<- factor(centroiddistsbyfield_full$exp, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+centroiddistsbyfield_full_2<-centroiddistsbyfield_full%>% mutate(year2=as.numeric(year)-1981)
+
+
+
+distbetweencentroidsbyfield_fullN<-ggplot(data=centroiddistsbyfield_full_2,aes(x=as.numeric(as.character(year2)),y=meandist)) +
+    geom_point() +
+    facet_grid(vars(field), vars(exp))+ 
+    ylab(expression('Average distance between group centroids'))+
+    xlab("Time since experiment (years)")+
+    geom_smooth(method="loess")+
+    theme(legend.position="none")+
+     theme(strip.text = element_blank())+
+     theme(strip.background = element_blank())+
+    mytheme
+
+
+
+
+```
+
+
+
+
+#### DISPERSION BY FIELD WITH ALL NUTRIENT TREATMENTS####
 
 ```{r - Model fits and error dist BTWN centroid, TABLE S4}
 
@@ -2473,6 +2764,8 @@ grid.arrange(g11, g22 , ncol = 1, heights = c(1, 1))
 
 
 ```
+
+
 
 
 #### DISPERSION BETWEEN E001 and E002 by FIELD####
@@ -2590,23 +2883,26 @@ distE001E002BYFIELD<- ggplot(mergedcentroids_dist_2, aes(x=year2, y=distcentroid
 
 
 
-###SINOUSITY####
-```{r - calculate sinuosity of trajectories (log data)}
+### WANT TO INCLUDE FIELD D FOR THESE METRICS....###
+
+
+###OLD SINOUSITY METRIC####
+```{r - calculate sinuosity of trajectories full N gradient (log data)}
 
 #https://cran.rstudio.com/web/packages/trajr/vignettes/trajr-vignette.html#
 
 
-head(PCOAandplotsboth)
+head(PCOAandplotsboth_fullN)
 
 
 ##make each experiment, nutrient, plot, its own combo###
-PCOAandplotsboth2<-PCOAandplotsboth%>% mutate(expntrtplot= paste(exp, ntrt, plot, sep = '_'))
+PCOAandplotsboth_full2<-PCOAandplotsboth_fullN%>% mutate(expntrtplot= paste(exp, ntrt, plot, sep = '_'))
 
-PCOAandplotsboth3<-PCOAandplotsboth2 %>%  ungroup() %>% dplyr::select(expntrtplot, Axis.1, Axis.2, year, -exp, -disk)
+PCOAandplotsboth_full3<-PCOAandplotsboth_full2 %>%  ungroup() %>% dplyr::select(expntrtplot, Axis.1, Axis.2, year, -exp, -disk)
 
 
 ###calculate sinuoisty for each plot using the traj from coords function##
-trajectoriesplot<-lapply(X = split.data.frame(x = PCOAandplotsboth3, f=PCOAandplotsboth3$expntrtplot),function(t){
+trajectoriesplot_full<-lapply(X = split.data.frame(x = PCOAandplotsboth_full3, f=PCOAandplotsboth_full3$expntrtplot),function(t){
   PCOAscores<-t %>%   ungroup() %>% dplyr::select(Axis.1, Axis.2, year)
   trajs <- TrajFromCoords(PCOAscores)
   sinuosity<-TrajSinuosity2(trajs)
@@ -2615,43 +2911,78 @@ trajectoriesplot<-lapply(X = split.data.frame(x = PCOAandplotsboth3, f=PCOAandpl
   )
 
 ##dataframe of results##
-trajectoriesplotdf<-plyr::ldply(trajectoriesplot, data.frame)
+trajectoriesplotdf_full<-plyr::ldply(trajectoriesplot_full, data.frame)
 
 
-trajectoriesplotdf_2<-separate(data = trajectoriesplotdf, col = .id, into = c("exp", "ntrt", "plot"))
+trajectoriesplotdf_full2<-separate(data = trajectoriesplotdf_full, col = .id, into = c("exp", "ntrt", "plot"))
 
 ##mean sinuoisty for each exp_ntrt###
 
-sinuosityavg<-trajectoriesplotdf_2%>% group_by(exp, ntrt) %>% dplyr::summarise(sinuosityavg=mean(sinuosity, na.rm=TRUE),sdsinuosiy=sd(sinuosity, na.rm=TRUE),sesinuosity=sd(sinuosity, na.rm=TRUE)/sqrt(n()), uprconfint=sinuosityavg+(1.96*sesinuosity),lwrconfint=sinuosityavg-(1.96*sesinuosity), n=n())
+sinuosityavg_full<-trajectoriesplotdf_full2%>% group_by(exp, ntrt) %>% dplyr::summarise(sinuosityavg=mean(sinuosity, na.rm=TRUE),sdsinuosiy=sd(sinuosity, na.rm=TRUE),sesinuosity=sd(sinuosity, na.rm=TRUE)/sqrt(n()), uprconfint=sinuosityavg+(1.96*sesinuosity),lwrconfint=sinuosityavg-(1.96*sesinuosity), n=n())
 
 
 ```
 
 
-```{r - calculate sinuosity two decades}
+###OLD SINOUSITY METRIC####
+```{r - calculate sinuosity field ABCD control plots (log data)}
 
+
+head(PCOAABCDandplots)
+
+
+PCOAABCDandplots2<-PCOAABCDandplots %>%  mutate(fieldplot= paste(field, plot, sep = '_'))
+
+###calculate sinuoisty for each plot using the traj from coords function##
+trajectoriesABCDcontrol<-lapply(X = split.data.frame(x = PCOAABCDandplots2, f=PCOAABCDandplots2$fieldplot),function(t){
+  PCOAscores<-t %>%   ungroup() %>% dplyr::select(Axis.1, Axis.2, year)
+  trajs <- TrajFromCoords(PCOAscores)
+  sinuosity<-TrajSinuosity2(trajs)
+  return(data.frame(sinuosity))
+  }
+  )
+
+##dataframe of results##
+trajectoriesABCD_df<-plyr::ldply(trajectoriesABCDcontrol, data.frame)
+
+
+trajectoriesplotABCD_df_2<-separate(data = trajectoriesABCD_df, col = .id, into = c("field", "plot"))
+
+##mean sinuoisty for each exp_ntrt###
+
+sinuosityavg_ABCD<-trajectoriesplotABCD_df_2%>% group_by(field) %>% dplyr::summarise(sinuosityavg=mean(sinuosity, na.rm=TRUE),sdsinuosiy=sd(sinuosity, na.rm=TRUE),sesinuosity=sd(sinuosity, na.rm=TRUE)/sqrt(n()), uprconfint=sinuosityavg+(1.96*sesinuosity),lwrconfint=sinuosityavg-(1.96*sesinuosity), n=n())
+
+
+```
+
+
+
+```{r - calculate sinuosity two decades full N gradient }
+
+
+head(PCOAandplotsboth_fullN)
 
 ###split by decade##
 
-PCOAandplotsfirstdecade<-subset(PCOAandplotsboth, as.numeric(as.character(year))<=1992)
+PCOAandplotsfirstdecade_full<-subset(PCOAandplotsboth_fullN, as.numeric(as.character(year))<=1992)
 
-PCOAandplotsseconddecade<-subset(PCOAandplotsboth, as.numeric(as.character(year))>1992)
+PCOAandplotsseconddecade_full<-subset(PCOAandplotsboth_fullN, as.numeric(as.character(year))>1992)
 
 
 ##make each experiment, nutrient, plot, its own combo###
-PCOAandplotsfirstdecade2<-PCOAandplotsfirstdecade%>% mutate(expntrtplot= paste(exp, ntrt, plot, sep = '_'))
+PCOAandplotsfirstdecade2_full<-PCOAandplotsfirstdecade_full%>% mutate(expntrtplot= paste(exp, ntrt, plot, sep = '_'))
 
-PCOAandplotsfirstdecade3<-PCOAandplotsfirstdecade2 %>%  ungroup() %>% select(expntrtplot, Axis.1, Axis.2, year, -exp, -disk)
+PCOAandplotsfirstdecade3_full<-PCOAandplotsfirstdecade2_full %>%  ungroup() %>% select(expntrtplot, Axis.1, Axis.2, year, -exp, -disk)
 
 
-PCOAandplotsseconddecade2<-PCOAandplotsseconddecade%>% mutate(expntrtplot= paste(exp, ntrt, plot, sep = '_'))
+PCOAandplotsseconddecade2_full<-PCOAandplotsseconddecade_full%>% mutate(expntrtplot= paste(exp, ntrt, plot, sep = '_'))
 
-PCOAandplotsseconddecade3<-PCOAandplotsseconddecade2 %>%  ungroup() %>% select(expntrtplot, Axis.1, Axis.2, year, -exp, -disk)
+PCOAandplotsseconddecade3_full<-PCOAandplotsseconddecade2_full %>%  ungroup() %>% select(expntrtplot, Axis.1, Axis.2, year, -exp, -disk)
 
 ###calculate sinuoisty for each plot###
 
 ###
-trajectoriesplotfirst<-lapply(X = split.data.frame(x = PCOAandplotsfirstdecade3, f=PCOAandplotsfirstdecade3$expntrtplot),function(t){
+trajectoriesplotfirst_full<-lapply(X = split.data.frame(x = PCOAandplotsfirstdecade3_full, f=PCOAandplotsfirstdecade3_full$expntrtplot),function(t){
   PCOAscores<-t %>%   ungroup() %>% select(Axis.1, Axis.2, year)
   trajs <- TrajFromCoords(PCOAscores)
   sinuosity<-TrajSinuosity2(trajs)
@@ -2660,7 +2991,7 @@ trajectoriesplotfirst<-lapply(X = split.data.frame(x = PCOAandplotsfirstdecade3,
   )
 
 
-trajectoriesplotsecond<-lapply(X = split.data.frame(x = PCOAandplotsseconddecade3, f=PCOAandplotsseconddecade3$expntrtplot),function(t){
+trajectoriesplotsecond_full<-lapply(X = split.data.frame(x = PCOAandplotsseconddecade3_full, f=PCOAandplotsseconddecade3_full$expntrtplot),function(t){
   PCOAscores<-t %>%   ungroup() %>% select(Axis.1, Axis.2, year)
   trajs <- TrajFromCoords(PCOAscores)
   sinuosity<-TrajSinuosity2(trajs)
@@ -2671,37 +3002,39 @@ trajectoriesplotsecond<-lapply(X = split.data.frame(x = PCOAandplotsseconddecade
 
 
 ##dataframe of results##
-trajectoriesplotdffirst<-plyr::ldply(trajectoriesplotfirst, data.frame)
-trajectoriesplotdffirst_2<-separate(data = trajectoriesplotdffirst, col = .id, into = c("exp", "ntrt", "plot"))
+trajectoriesplotdffirst_full<-plyr::ldply(trajectoriesplotfirst_full, data.frame)
+trajectoriesplotdffirst_2_full<-separate(data = trajectoriesplotdffirst_full, col = .id, into = c("exp", "ntrt", "plot"))
 
-trajectoriesplotdfsecond<-plyr::ldply(trajectoriesplotsecond, data.frame)
+trajectoriesplotdfsecond_full<-plyr::ldply(trajectoriesplotsecond_full, data.frame)
 
-trajectoriesplotdfsecond_2<-separate(data = trajectoriesplotdfsecond, col = .id, into = c("exp", "ntrt", "plot"))
+trajectoriesplotdfsecond_2_full<-separate(data = trajectoriesplotdfsecond_full, col = .id, into = c("exp", "ntrt", "plot"))
 
 ### add column for decades###
 
-trajectoriesplotdffirst_2<-trajectoriesplotdffirst_2 %>% mutate(decade="1982-1992")
+trajectoriesplotdffirst_2_full<-trajectoriesplotdffirst_2_full %>% mutate(decade="1982-1992")
 
-trajectoriesplotdfsecond_2<-trajectoriesplotdfsecond_2 %>% mutate(decade="1993-2004")
+trajectoriesplotdfsecond_2_full<-trajectoriesplotdfsecond_2_full %>% mutate(decade="1993-2004")
 
 ##combine them together##
-trajectoriesboth<-rbind(trajectoriesplotdffirst_2, trajectoriesplotdfsecond_2)
+trajectoriesboth_full<-rbind(trajectoriesplotdffirst_2_full, trajectoriesplotdfsecond_2_full)
 
 ##mean sinuoisty for each exp_ntrt###
 
-sinuosityavgbydecade<-trajectoriesboth%>% group_by(exp, ntrt, decade) %>% dplyr::summarise(sinuosityavg=mean(sinuosity, na.rm=TRUE),sdsinuosiy=sd(sinuosity, na.rm=TRUE),sesinuosity=sd(sinuosity, na.rm=TRUE)/sqrt(n()), n=n())
+sinuosityavgbydecade_full<-trajectoriesboth_full%>% group_by(exp, ntrt, decade) %>% dplyr::summarise(sinuosityavg=mean(sinuosity, na.rm=TRUE),sdsinuosiy=sd(sinuosity, na.rm=TRUE),sesinuosity=sd(sinuosity, na.rm=TRUE)/sqrt(n()), n=n())
 
 ```
 
 
-```{r - recreate FIGURE 4ab Sinuosity}
+```{r - recreate FIGURE 4ab Sinuosity full N gradient}
 
 ##for plotting###
-sinuosityavg2<-sinuosityavg %>% mutate(ntrt2=ntrt)
+sinuosityavg2<-sinuosityavg_full %>% mutate(ntrt2=ntrt)
 
-## plot specifications
-sinuosityavg2$ntrt2  <- mapvalues(sinuosityavg2$ntrt2, from=c("9", "1", "2", "4","6"), to=c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
-sinuosityavg2$ntrt2 <- factor(sinuosityavg2$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
+
+sinuosityavg2$ntrt2  <- mapvalues(sinuosityavg2$ntrt2, from=c("9", "1", "2", "3", "4","5","6", "7", "8"),
+                               to=c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+
+sinuosityavg2$ntrt2 <- factor(sinuosityavg2$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
 
 
 sinuosityavg2$exp<-mapvalues(sinuosityavg2$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
@@ -2717,7 +3050,7 @@ levels(sinuosityavg2$abclabel) <- c( "(a) ", "(b) ")
 mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title.x=element_text(size=12))+theme(axis.title.y=element_text(size=10))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))+ theme(panel.grid.major = element_line(colour = "gray 85"))+ theme(panel.grid.minor = element_line(colour = "gray 95"))
 
 
-sinuosityplot<- ggplot(data=sinuosityavg2, aes(x=ntrt2, y=sinuosityavg, group=ntrt2, color=ntrt2)) +
+sinuosityplot_fullN<- ggplot(data=sinuosityavg2, aes(x=ntrt2, y=sinuosityavg, group=ntrt2, color=ntrt2)) +
     geom_point(size=2) +
     geom_errorbar(aes(ymin=lwrconfint, ymax=uprconfint), size=1)+
     facet_grid(~exp)+ 
@@ -2727,29 +3060,54 @@ sinuosityplot<- ggplot(data=sinuosityavg2, aes(x=ntrt2, y=sinuosityavg, group=nt
     theme(legend.position="none")+
     theme(legend.title = element_blank()) + 
   theme(strip.text.x = element_text(size = 14, colour = "black"))+
-   scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
+   #scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
    theme(axis.text.x = element_text(angle = 25,vjust = 0.5))+
     theme(strip.text = element_text(face="bold"))+
      theme(strip.background = element_blank())+
    theme(strip.text = element_text(size=12, face="bold"))+
      theme(strip.background = element_blank())+
-      geom_text(aes(x = 0.8, y = 8.2, label = abclabel, group =     abclabel),size = 4, color= "black", check_overlap = T)+ scale_y_continuous(labels = scales::number_format(accuracy = 0.1))+ylim(4.8, 8.3)
+      geom_text(aes(x = 0.8, y = 8.2, label = abclabel, group =     abclabel),size = 4, color= "black", check_overlap = T)+ scale_y_continuous(labels = scales::number_format(accuracy = 0.1))+ylim(3.8, 8.3)
+
+
+
+
+sinuosityplot_ABCD<- ggplot(data=sinuosityavg_ABCD, aes(x=field, y=sinuosityavg, group=field)) +
+    geom_point(size=2) +
+    geom_errorbar(aes(ymin=lwrconfint, ymax=uprconfint), size=1)+
+    xlab("")+
+    ylab(expression(atop("Average sinuosity", paste("(1982 - 2004)"))))+
+    mytheme+
+    theme(legend.position="none")+
+    theme(legend.title = element_blank()) + 
+  theme(strip.text.x = element_text(size = 14, colour = "black"))+
+   #scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
+   theme(axis.text.x = element_text(angle = 25,vjust = 0.5))+
+    theme(strip.text = element_text(face="bold"))+
+     theme(strip.background = element_blank())+
+   theme(strip.text = element_text(size=12, face="bold"))+
+     theme(strip.background = element_blank())+
+      scale_y_continuous(labels = scales::number_format(accuracy = 0.1))+ylim(3.8, 10)
+
+
+
 
 
 ```
 
 
-```{r - recreate SUP FIG 4 Sinuosity 2 decades}
+```{r - recreate SUP FIG 4 Sinuosity 2 decades full N gradient}
 
 
 
 ##for plotting###
-sinuosityavgbydecade2<-sinuosityavgbydecade %>% mutate(ntrt2=ntrt)
+sinuosityavgbydecade2<-sinuosityavgbydecade_full %>% mutate(ntrt2=ntrt)
 
 ## plot specifications
-sinuosityavgbydecade2$ntrt2  <- mapvalues(sinuosityavgbydecade2$ntrt2, from=c("9", "1", "2", "4","6"), to=c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
 
-sinuosityavgbydecade2$ntrt2 <- factor(sinuosityavgbydecade2$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
+sinuosityavgbydecade2$ntrt2  <- mapvalues(sinuosityavgbydecade2$ntrt2, from=c("9", "1", "2", "3", "4","5","6", "7", "8"),
+                               to=c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+
+sinuosityavgbydecade2$ntrt2 <- factor(sinuosityavgbydecade2$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
 
 
 sinuosityavgbydecade2$exp<-mapvalues(sinuosityavgbydecade2$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
@@ -2764,7 +3122,7 @@ mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3
 mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title.x=element_text(size=12))+theme(axis.title.y=element_text(size=10))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))+ theme(panel.grid.major = element_line(colour = "gray 85"))+ theme(panel.grid.minor = element_line(colour = "gray 95"))
 
 
-sinuosityplotbydecade<- ggplot(data=sinuosityavgbydecade2, aes(x=ntrt2, y=sinuosityavg, group=ntrt2, color=ntrt2)) +
+sinuosityplotbydecade_fullN<- ggplot(data=sinuosityavgbydecade2, aes(x=ntrt2, y=sinuosityavg, group=ntrt2, color=ntrt2)) +
     geom_point(size=2) +
     geom_errorbar(aes(ymin=sinuosityavg-sesinuosity, ymax=sinuosityavg+sesinuosity), size=1)+
     facet_grid(decade~exp)+ 
@@ -2774,7 +3132,7 @@ sinuosityplotbydecade<- ggplot(data=sinuosityavgbydecade2, aes(x=ntrt2, y=sinuos
     theme(legend.position="none")+
     theme(legend.title = element_blank()) + 
   theme(strip.text.x = element_text(size = 14, colour = "black"))+
-   scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
+   #scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
    theme(axis.text.x = element_text(angle = 25,vjust = 0.5))+
     theme(strip.text = element_text(face="bold"))+
      theme(strip.background = element_blank())+
@@ -2807,28 +3165,56 @@ grid.arrange(g111, g222 , ncol = 1, heights = c(1, 1))
 ```
 
 
+###CODE CHECKING GOT UP TO HERE on 11/3#######
+
+
 
 ###SINOUSITY USING TRAJECTORY DIRECTIONALITY ####
-```{r - calculate sinuosity of trajectories (log data)}
+```{r - calculate traj directionality (log data)}
 
-##distABCD ### 
+##START W/ the DISTANCE MATRIX instead of PCOA points ### 
+
+head(BCdistalldf2)
+
 
 ##make each field, experiment, plot, its own combo###
-plotABCD2<-plotABCD%>% mutate(fieldexpplot= paste(field, exp,plot, sep = '_'))
+plotE001E002<-BCdistalldf2 %>% select(field, exp, plot, subplot, year, disk, ntrt, expntrtyear)%>% mutate(fieldexpplot= paste(field, exp,plot, sep = '_'))
 
 ##
-plotABCD3<-distinct(plotABCD2, fieldexpplot, .keep_all=TRUE)
+plotE001E002_2<-distinct(plotE001E002, fieldexpplot, .keep_all=TRUE)
 
 
-trajdirection<-trajectoryDirectionality(distABCD, plotABCD2$fieldexpplot, plotABCD2$year)
+trajdirection<-trajectoryDirectionality(BCdistall, plotE001E002$fieldexpplot, plotE001E002$year)
 
 
-trajdirectdf<-cbind(plotABCD3, trajdirection)
+trajdirectdf<-cbind(plotE001E002_2, trajdirection)
 
 
-##mean directionality for each exp_ntrt including field d ###
+##mean directionality for each exp_ntrt ###
 
 trajdiravg<-trajdirectdf%>% group_by(exp, ntrt) %>% dplyr::summarise(trajdiravg=mean(trajdirection, na.rm=TRUE),sdtrajdir=sd(trajdirection, na.rm=TRUE),setrajdir=sd(trajdirection, na.rm=TRUE)/sqrt(n()), uprconfint=trajdiravg+(1.96*setrajdir),lwrconfint=trajdiravg-(1.96*setrajdir), n=n())
+
+
+##### NOW do for fields ABCD controls###
+
+head(BCdistABCDdf2)
+
+##make each field,  plot, its own combo###
+plotABCD<-BCdistABCDdf2 %>% select(field, exp, plot, year)%>% mutate(fieldplot= paste(field, plot, sep = '_'))
+
+plotABCD_2<-distinct(plotABCD, fieldplot, .keep_all=TRUE)
+
+
+trajdirectionABCD<-trajectoryDirectionality(BCdistABCD, plotABCD$fieldplot, plotABCD$year)
+
+
+trajdirectABCDdf<-cbind(plotABCD_2, trajdirectionABCD)
+
+### mean directionality of fields...##
+
+
+trajdirABCDavg<-trajdirectABCDdf%>% group_by(field) %>% dplyr::summarise(trajdiravg=mean(trajdirectionABCD, na.rm=TRUE),sdtrajdir=sd(trajdirectionABCD, na.rm=TRUE),setrajdir=sd(trajdirectionABCD, na.rm=TRUE)/sqrt(n()), uprconfint=trajdiravg+(1.96*setrajdir),lwrconfint=trajdiravg-(1.96*setrajdir), n=n())
+
 
 
 ```
@@ -2839,7 +3225,6 @@ trajdiravg<-trajdirectdf%>% group_by(exp, ntrt) %>% dplyr::summarise(trajdiravg=
 
 ##for plotting###
 trajdiravg2<-trajdiravg %>% mutate(ntrt2=ntrt)
-
 
 
 trajdiravg2$ntrt2  <- mapvalues(trajdiravg2$ntrt2, from=c("0", "9", "1", "2", "3", "4","5","6", "7", "8"),
@@ -2874,6 +3259,27 @@ directionalityplot<- ggplot(data=trajdiravg2, aes(x=ntrt2, y=trajdiravg, group=n
      theme(strip.background = element_blank())
 
 
+##directionality of control plots###
+
+head(trajdirABCDavg)
+
+
+directionalityplotABCD<- ggplot(data=trajdirABCDavg, aes(x=field, y=trajdiravg, group=field)) +
+    geom_point(size=2) +
+    geom_errorbar(aes(ymin=lwrconfint, ymax=uprconfint), size=1)+
+    xlab("")+
+    ylab(expression(atop("Average directionality", paste("(1982 - 2004)"))))+
+    mytheme+
+    theme(legend.position="none")+
+    theme(legend.title = element_blank()) + 
+  theme(strip.text.x = element_text(size = 14, colour = "black"))+
+     theme(axis.text.x = element_text(angle = 25,vjust = 0.5))+
+    theme(strip.text = element_text(face="bold"))+
+     theme(strip.background = element_blank())+
+   theme(strip.text = element_text(size=12, face="bold"))+
+     theme(strip.background = element_blank())
+
+
 ```
 
 
@@ -2881,70 +3287,70 @@ directionalityplot<- ggplot(data=trajdiravg2, aes(x=ntrt2, y=trajdiravg, group=n
 ##TRAJECTORY DISTANCE####
 
 ##
-```{r - calculate trajectory distance between years (log data)}
+```{r - calculate trajectory distance between years full N gradient (log data)}
 
 ##https://cran.r-project.org/web/packages/ecotraj/vignettes/IntroductionETA.html##
 
 ##get the PCoA points into a Euclidean distance matrix to calc. distance between points ###
 
-PCOAandplotsboth_2 <- PCOAandplotsboth %>% arrange(exp, field, ntrt,plot, year)%>%mutate(exp_field_ntrt_plot= paste(exp, field, ntrt,plot, sep = '_'), exp_field_ntrt_plot2 = as.numeric(as.factor(exp_field_ntrt_plot))) %>% dplyr::select(field, exp, plot, subplot, year, disk, ntrt, nadd, expntrtyear, expntrtfieldyear, exp_field_ntrt_plot, exp_field_ntrt_plot2, Axis.1, Axis.2)
+PCOAandplotsboth_2_fullN <- PCOAandplotsboth_fullN %>% arrange(exp, field, ntrt,plot, year)%>%mutate(exp_field_ntrt_plot= paste(exp, field, ntrt,plot, sep = '_'), exp_field_ntrt_plot2 = as.numeric(as.factor(exp_field_ntrt_plot))) %>% dplyr::select(field, exp, plot, subplot, year, disk, ntrt,  expntrtyear, expntrtfieldyear, exp_field_ntrt_plot, exp_field_ntrt_plot2, Axis.1, Axis.2)
 
 ###split it by E001 and E002 since there are missing years in E002##
-PCOAandplotsE001<-subset(PCOAandplotsboth_2, exp==1) 
-PCOAandplotsE002<-subset(PCOAandplotsboth_2, exp==2) 
+PCOAandplotsE001_fullN<-subset(PCOAandplotsboth_2_fullN, exp==1) 
+PCOAandplotsE002_fullN<-subset(PCOAandplotsboth_2_fullN, exp==2) 
 
 #drop the years for E002##
-levels(PCOAandplotsE002$year)
-PCOAandplotsE002$year <- as.factor(as.character(PCOAandplotsE002$year))
+levels(PCOAandplotsE002_fullN$year)
+PCOAandplotsE002_fullN$year <- as.factor(as.character(PCOAandplotsE002_fullN$year))
 
 
-EucE001 = dist(PCOAandplotsE001[,13:14])
-EucE002 = dist(PCOAandplotsE002[,13:14])
-
-
-####
-trajlengthE001<-trajectoryLengths(EucE001, PCOAandplotsE001$exp_field_ntrt_plot, PCOAandplotsE001$year)
-
-trajlengthE002<-trajectoryLengths(EucE002, PCOAandplotsE002$exp_field_ntrt_plot, PCOAandplotsE002$year)
+EucE001 = dist(PCOAandplotsE001_fullN[,12:13])
+EucE002 = dist(PCOAandplotsE002_fullN[,12:13])
 
 
 ####
-yearnamesE001<-levels(PCOAandplotsE001$year)
-trajlengthE001_df=as.data.frame(trajlengthE001)
+trajlengthE001_fullN<-trajectoryLengths(EucE001, PCOAandplotsE001_fullN$exp_field_ntrt_plot, PCOAandplotsE001_fullN$year)
 
-colnames(trajlengthE001_df)<-yearnamesE001
-names(trajlengthE001_df)[names(trajlengthE001_df) == '2004'] <- 'Total'
+trajlengthE002_fullN<-trajectoryLengths(EucE002, PCOAandplotsE002_fullN$exp_field_ntrt_plot, PCOAandplotsE002_fullN$year)
 
-trajlengthE001_df$names <- rownames(trajlengthE001_df)
-
-trajlengthE001_df2<-trajlengthE001_df %>%separate(names, c("exp", "field", "ntrt", "plot"), "_")
-
-trajlengthE001_df3<-trajlengthE001_df2%>%dplyr::select(exp, field, ntrt, plot, '1982':'Total')
 
 ####
-yearnamesE002<-levels(PCOAandplotsE002$year)
-trajlengthE002_df=as.data.frame(trajlengthE002)
-colnames(trajlengthE002_df)<-yearnamesE002
-names(trajlengthE002_df)[names(trajlengthE002_df) == '2004'] <- 'Total'
+yearnamesE001<-levels(PCOAandplotsE001_fullN$year)
+trajlengthE001_df_fullN=as.data.frame(trajlengthE001_fullN)
 
-trajlengthE002_df$names <- rownames(trajlengthE002_df)
+colnames(trajlengthE001_df_fullN)<-yearnamesE001
+names(trajlengthE001_df_fullN)[names(trajlengthE001_df_fullN) == '2004'] <- 'Total'
 
-trajlengthE002_df2<-trajlengthE002_df %>%separate(names, c("exp", "field", "ntrt", "plot"), "_")%>%dplyr::select(exp, field, ntrt, plot, '1982':'Total')
+trajlengthE001_df_fullN$names <- rownames(trajlengthE001_df_fullN)
+
+trajlengthE001_df2_fullN<-trajlengthE001_df_fullN %>%separate(names, c("exp", "field", "ntrt", "plot"), "_")
+
+trajlengthE001_df3_fullN<-trajlengthE001_df2_fullN%>%dplyr::select(exp, field, ntrt, plot, '1982':'Total')
+
+####
+yearnamesE002<-levels(PCOAandplotsE002_fullN$year)
+trajlengthE002_df_fullN=as.data.frame(trajlengthE002_fullN)
+colnames(trajlengthE002_df_fullN)<-yearnamesE002
+names(trajlengthE002_df_fullN)[names(trajlengthE002_df_fullN) == '2004'] <- 'Total'
+
+trajlengthE002_df_fullN$names <- rownames(trajlengthE002_df_fullN)
+
+trajlengthE002_df2_fullN<-trajlengthE002_df_fullN %>%separate(names, c("exp", "field", "ntrt", "plot"), "_")%>%dplyr::select(exp, field, ntrt, plot, '1982':'Total')
 
 ###for this df, we need to drop the columns where we don't have back to back years###
 ##drop: 1994 (col 17(missing 1995), drop 2000 (missing 2001) (col 21), drop 2002 (missing 2003)(col 22), drop 2003 (missing most of 2004)(col 23)###
 
-trajlengthE002_df3 <- subset(trajlengthE002_df2, select = -c(17,21:23))
+trajlengthE002_df3_fullN <- subset(trajlengthE002_df2_fullN, select = -c(17,21:23))
 
 ##convert wide to long##
 
-traj_longE001 <- gather(trajlengthE001_df3, startingyear, trajdist, '1982':'2003', factor_key=TRUE)
+traj_longE001_fullN<- gather(trajlengthE001_df3_fullN, startingyear, trajdist, '1982':'2003', factor_key=TRUE)
 
-traj_longE002 <- gather(trajlengthE002_df3, startingyear, trajdist, '1982':'1999', factor_key=TRUE)
+traj_longE002_fullN <- gather(trajlengthE002_df3_fullN, startingyear, trajdist, '1982':'1999', factor_key=TRUE)
 
 ##combine the two dataframes back together##
 
-traj_longboth<-rbind(traj_longE001, traj_longE002)
+traj_longboth_fullN<-rbind(traj_longE001_fullN, traj_longE002_fullN)
 
 ##this data frame (traj_long_both) contain the trajectory distance in Euclidean space for each plot between years. traj dist = the dist between starting year and the next year###
 
@@ -2952,59 +3358,15 @@ traj_longboth<-rbind(traj_longE001, traj_longE002)
 
 ##summarize the average distance between years by treatment group##
 
-avgTraj_byyear_E001E002<-traj_longboth%>% group_by(exp,ntrt,startingyear) %>% dplyr::summarise(meantrajdist=mean(trajdist, na.rm=TRUE),sdtrajdist=sd(trajdist, na.rm=TRUE),setrajdist=sd(trajdist, na.rm=TRUE)/sqrt(n()), n=n())
+avgTraj_byyear_E001E002_fullN<-traj_longboth_fullN%>% group_by(exp,ntrt,startingyear) %>% dplyr::summarise(meantrajdist=mean(trajdist, na.rm=TRUE),sdtrajdist=sd(trajdist, na.rm=TRUE),setrajdist=sd(trajdist, na.rm=TRUE)/sqrt(n()), n=n())
 
-avgTraj_byyear_E001E002_2<- avgTraj_byyear_E001E002 %>% mutate (year2=as.numeric(as.character(startingyear))+0.5-1981)
-
-
-
-```
-
-
-
-
-##
-```{r - calculate trajectory distance between years BC dist matrix (log data)}
-
-
-##distABCD ###
-#BCdistABCDdf2#
-
-##make each field, experiment, plot, its own combo###
-
-plotABCD2<-plotABCD%>% mutate(fieldexpplot= paste(field, exp,plot, sep = '_'))
-
-##
-plotABCD3<-distinct(plotABCD2, fieldexpplot, .keep_all=TRUE)
-
-
-
-###split it by E001 + field D and E002 since there are missing years in E002##
-BCdistE001andD<-subset(BCdistABCDdf2, exp==1|exp==0) 
-BCdistE002<-subset(BCdistABCDdf2, exp==2) 
-
-BCmatrixE001andD<-as.matrix(BCdistE001andD[,11:4761])
-BCmatrixE002<-as.matrix(BCdistE002[,11:4761])
-
-plotABCDE001<-subset(plotABCD2, exp==1|exp==0)
-plotABCE002<-subset(plotABCD2, exp==2)
-
-
-###
-
-####
-trajlengthall<-trajectoryLengths(BCdistE001andD,  plotABCDE001$fieldexpplot,  plotABCDE001$year)
-
-
-
+avgTraj_byyear_E001E002_2_fullN<- avgTraj_byyear_E001E002_fullN %>% mutate (year2=as.numeric(as.character(startingyear))+0.5-1981)
 
 
 
 ```
 
-
-
-
+###review this###
 ```{r - AIC trajectory analysis, TABLE S5 and S6}
 
 
@@ -3064,7 +3426,9 @@ l_ply(modelsE002, summary, .print = TRUE)
 
 ```{r - recreate FIGURE 5ab Trajectory distance w linear fit}
 
-## plot specifications
+avgTraj_byyear_E001E002<-avgTraj_byyear_E001E002_2_fullN
+
+# plot specifications
 
 avgTraj_byyear_E001E002$exp<-mapvalues(avgTraj_byyear_E001E002$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
 
@@ -3075,9 +3439,11 @@ avgTraj_byyear_E001E002_2<- avgTraj_byyear_E001E002 %>% mutate (year2=as.numeric
 
 avgTraj_byyear_E001E002_2<-avgTraj_byyear_E001E002_2 %>% mutate(ntrt2=ntrt)
 
-avgTraj_byyear_E001E002_2$ntrt2  <- mapvalues(avgTraj_byyear_E001E002_2$ntrt2, from=c("9", "1", "2", "3", "4","5","6"),to=c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro"))
 
-avgTraj_byyear_E001E002_2$ntrt2 <- factor(avgTraj_byyear_E001E002_2$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro"))
+avgTraj_byyear_E001E002_2$ntrt2  <- mapvalues(avgTraj_byyear_E001E002_2$ntrt2, from=c("0", "9", "1", "2", "3", "4","5","6", "7", "8"),
+                               to=c("Never", "None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+
+avgTraj_byyear_E001E002_2$ntrt2 <- factor(avgTraj_byyear_E001E002_2$ntrt2, levels = c("Never", "None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
 
 
 
@@ -3093,7 +3459,7 @@ levels(avgTraj_byyear_E001E002_2$abclabel) <- c( "(a) ", "(b) ")
 avgTrajcontrol<-subset(avgTraj_byyear_E001E002_2, ntrt2=="None")
 
 
-avgTraj_byyearlinear<- ggplot(data=avgTraj_byyear_E001E002_2) +
+avgTraj_byyearlinear_fullN<- ggplot(data=avgTraj_byyear_E001E002_2) +
     geom_point(data=avgTraj_byyear_E001E002_2, aes(x=as.numeric(as.character(year2)), y=meantrajdist, group=ntrt2, color=ntrt2)) +
     geom_smooth(data=avgTraj_byyear_E001E002_2, aes(x=as.numeric(as.character(year2)), y=meantrajdist, group=ntrt2, color=ntrt2), method = "lm", formula = y ~ x , size = 1, se=FALSE)+
     geom_point(data=avgTrajcontrol, aes(x=as.numeric(as.character(year2)), y=meantrajdist),     color="gray45") +
@@ -3103,11 +3469,10 @@ geom_smooth(data = avgTrajcontrol, aes(x=as.numeric(as.character(year2)), y=mean
     xlab("Time since experiment (years)")+
     mytheme+
     theme(legend.title = element_blank()) + 
-  theme(legend.position = "none") +
-    scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
+    #scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
     theme(strip.text = element_text(size=12, face="bold"))+
-     theme(strip.background = element_blank())+
- geom_text(aes(x = 2.0, y = 0.25, label = abclabel, group =     abclabel),size = 4, color= "black", check_overlap = T)
+     theme(strip.background = element_blank())
+ #geom_text(aes(x = 2.0, y = 0.25, label = abclabel, group =     abclabel),size = 4, color= "black", check_overlap = T)
 
 
 ##add text and legend##
@@ -3117,6 +3482,8 @@ avgTraj_byyear_2_linear<-avgTraj_byyearlinear+ theme(legend.position = c(0.85, 0
 
 
 ```
+
+
 
 
 
@@ -3611,7 +3978,6 @@ PCOA2004plot <- ggplot() +
 
 
 ```
-
 
 
 ```{r - NMDS species last few years}
