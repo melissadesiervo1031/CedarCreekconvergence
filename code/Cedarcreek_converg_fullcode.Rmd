@@ -730,6 +730,9 @@ PCOAandplotsboth_fullN<-cbind(plot,PCOAaxesboth_fullN )
 ##PCOAandplotsboth_full N has the plot info and the PCOA scores for the entire experiment (E001 and E002, all three fields combined, wiah ALL of the ntrt treatments)
 
 
+####species scores#####
+
+
 
 
 
@@ -841,106 +844,6 @@ permmaster3_allnut<-subset(permmasterall,sourcevariation=="Disturbance"|sourceva
 ```
 
 
-```{r - Conduct permanova w/ blocking: nutrient, disturbance, field effect (log data) FULL N GRADIENT}
-
-exp12subset<-subset(da.wide5,year<2005)
-
-
-####for this analysis, getting rid of the years where not every field was sampeled##
-
-exp12subset_22<-exp12subset%>%filter(year!=1995)%>%filter(year!=1998)%>%filter(year!=2001)%>%filter(year!=2003)
-
-
-
-###log transform the biomass data###
-
-justveg<-as.matrix(exp12subset_22[,12:198])
-
-logveg<-log(1+justveg)
-
-exp12subset_22<-cbind(exp12subset_22[,1:11], logveg)
-
-
-
-### Extract two  years year to get the apply function to work#####
-
-da.wide_1990<-subset(exp12subset_22, year=="1990", row.names=NULL)
-
-da.wide_1999<-subset(exp12subset_22, year=="1999", row.names=NULL)
-
-###
-exp12subset_19821991<-subset(exp12subset_22, as.numeric(as.character(year)) < 1992)
-exp12subset_19922004<-subset(exp12subset_22, as.numeric(as.character(year)) >= 1992)
-
-#drop the levels not sampeled
-
-levels(exp12subset_19821991$year)
-exp12subset_19821991$year <- as.factor(as.character(exp12subset_19821991$year))
-
-
-levels(exp12subset_19922004$year)
-exp12subset_19922004$year <- as.factor(as.character(exp12subset_19922004$year))
-
-##Do a PERMANOVA looping over years, looking at effect of exp (disturbed or not), ntrt treatment# and field (A, B, C)###
-
-##need to do this in two batches because from 1992 on there are fewer plots..####
-
-
-adonis2(Y ~ fish + season*year, data=metadata, perm= how(blocks = metadata$valley, plots = Plots(strata = metadata$lake), within = Within(type = "series"), nperm=9999), by="margin")
-
-### If we restrict permutations, I don't think we can use field as fixed effect###
-
-#perm= how(blocks = metadata$valley, plots = Plots(strata = metadata$lake)
-
-##not working..hmmm###
-
-
-###
-permallfieldstry1<-lapply(X = split.data.frame(x = exp12subset_19821991, f=exp12subset_19821991$year),function(t){
-  z<-adonis2(vegdist(t[,11:198])~exp+ntrt,  data= da.wide_1990, strata=field)
-  return(data.frame(z))
-  }
-  )
-
-
-
-permallfields2<-lapply(X = split.data.frame(x = exp12subset_19922004, f=exp12subset_19922004$year),function(t){
-  z<-adonis2(vegdist(t[,11:198])~exp+ntrt+field, data= da.wide_1999)
-  return(data.frame(z))
-  }
-  )
-
-
-
-
-##dataframe of results##
-permmaster1<-plyr::ldply(permallfields1, data.frame)
-permmaster2<-plyr::ldply(permallfields2, data.frame)
-
-
-names<-c("Disturbance", "Fertilization", "Field", "residual", "total")
-
-sourcevariation<-rep(names,length(unique(permmaster1$.id)))
-
-permmaster11<-cbind(sourcevariation,permmaster1)
-
-sourcevariation<-rep(names,length(unique(permmaster2$.id)))
-
-permmaster22<-cbind(sourcevariation,permmaster2)
-
-###
-
-permmasterall<-rbind(permmaster11, permmaster22)
-  
-permmaster3_allnut<-subset(permmasterall,sourcevariation=="Disturbance"|sourcevariation=="Fertilization"|sourcevariation=="Field") 
-
-##This dataframe (permmmaster3_allnut) has the results from a permanova for each independent variable (disturbance, field, fertilization) for every year in the dataset w/ everything sampeled. The R2 column is what is plotted in Fig 1 ###
-
-
-
-```
-
-
 
 
 
@@ -975,6 +878,11 @@ variancetimeall_allnut<-permmaster5 %>% ggplot(aes(x=as.numeric(year2), y=R2, gr
     mytheme+
     theme(strip.text = element_text(face="bold", size=12))+
      theme(strip.background = element_blank())
+
+
+pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/Dist recovery MS/Figures_overleaf/variancetimeall_new2.pdf", width = 7, height = 3)
+variancetimeall_allnut
+dev.off()
 
    ###
 
@@ -1022,9 +930,9 @@ PCOAandplotsavg2_fullN$ntrt2<-PCOAandplotsavg2_fullN$ntrt
 
 
 PCOAandplotsavg2_fullN$ntrt2  <- mapvalues(PCOAandplotsavg2_fullN$ntrt2, from=c("9", "1", "2", "3", "4","5","6", "7", "8"),
-                               to=c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+                               to=c("None", "0 N + μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
 
-PCOAandplotsavg2_fullN$ntrt2 <- factor(PCOAandplotsavg2_fullN$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+PCOAandplotsavg2_fullN$ntrt2 <- factor(PCOAandplotsavg2_fullN$ntrt2, levels = c("None", "0 N + μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
 
 
 
@@ -1047,22 +955,23 @@ PCOAandplotsavg3_fullN$disk<-plyr::mapvalues(PCOAandplotsavg3_fullN$disk, from=c
 
 ann_textdisk3 <- data.frame(meanAxis1 = c(0.00, 0.00), meanAxis2 =c(0.27, 0.27),exp= c("Intact in 1982 (E001)","Disturbed in 1982 (E002)"), year=c(1982, 1982), exp_ntrt=c("1_9", "2_9"),abclabel = factor(c("(a) ","(b) " ),levels = c("(a) ", "(b) ", "(c) ", "(d) ", "(e) ", "(f) ", "(g) ", "(h) ", "(i) ", "(j) ", "(k) ", "(l) ", "(m) ", "(n) ", "(o) ", "(p) ", "(q) ", "(r) ")))
 
-#ann_textntrt <- data.frame(meanAxis1 = c(0.45, 0.45, 0.45, 0.45, 0.45,0.45,0.45,0.45,0.45), meanAxis2 =c(0.05, 0.05, 0.05, 0.05, 0.05,0.05,0.05,0.05,0.05),exp= c("2","2","2","2","2","2","2","2","2"), year=c(1982, 1982, 1982, 1982, 1982), exp_ntrt=c("2_9", "2_1", "2_2","2_3", "2_4","2_5", "2_6","2_7", "2_8"),abclabel = factor(c("(b) ","(d) ", "(f) ","(h) ","(j) " ,"l", "n", "p", "r"),levels = c("(a) ", "(b) ", "(c) ", "(d) ", "(e) ", "(f) ", "(g) ", "(h) ", "(i) ", "(j) ")))
+
+
+
+mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=7, colour = "black"))+theme(axis.text.y=element_text(size=7, colour = "black"))+theme(axis.title=element_text(size=10))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))+ theme(panel.grid.major = element_line(colour = "gray 85", size=0.25))+theme(legend.text = element_text(size=8))+theme(legend.key.size = unit(0.45, 'cm'))
+
 
 
 
 PcoAfieldAveragedE001E002_fullN<-ggplot(PCOAandplotsavg3_fullN[order(PCOAandplotsavg3_fullN$year),], aes(x=meanAxis1  , y=meanAxis2 , group=exp_ntrt, color=year, label=year)) +
-    geom_point(size=0.75) +
+    geom_point(size=0.35) +
     geom_errorbar(aes(ymin=meanAxis2-seAxis2, ymax=meanAxis2+seAxis2), color="dark gray", size=0.25) +
     geom_errorbarh(aes(xmin=meanAxis1-seAxis1, xmax=meanAxis1+seAxis1), color="dark gray", size=0.25) +
-    geom_path(aes(x=meanAxis1 , y=meanAxis2 , group=exp_ntrt, color=year),size=0.5)+
+    geom_path(aes(x=meanAxis1 , y=meanAxis2 , group=exp_ntrt, color=year),size=0.25)+
     geom_point(size=0.75) +
-    xlim(c(min(PCOAandplotsavg3_fullN$meanAxis1-PCOAandplotsavg3_fullN$seAxis1)),max(PCOAandplotsavg3_fullN$meanAxis1+PCOAandplotsavg3_fullN$seAxis1))+
-    ylim(c(min(PCOAandplotsavg3_fullN$meanAxis2-PCOAandplotsavg3_fullN$seAxis2)),max(PCOAandplotsavg3_fullN$meanAxis2+PCOAandplotsavg3_fullN$seAxis2))+
     ylab("PCoA 2")+
     xlab("PCoA 1")+
-    facet_grid(ntrt2~disk) + 
-    #geom_text(aes(label=yearlabel),position=position_jitter(width=0.05,height=0.05), color="black", size=2.5)+
+    facet_grid(disk~ntrt2) + 
     mytheme+
     scale_color_viridis(option = "D")+
     scale_fill_viridis(option = "D",trans = 'reverse')+
@@ -1070,11 +979,18 @@ PcoAfieldAveragedE001E002_fullN<-ggplot(PCOAandplotsavg3_fullN[order(PCOAandplot
     color = guide_colorbar(reverse = TRUE),
     #reverse size order (higher diameter on top) 
     size = guide_legend(reverse = TRUE))+
-   #scale_y_continuous(breaks=c(-0.2, 0.0, 0.2, 0.4))+
-    geom_text(aes(x = -0.26, y = 0.16, label = abclabel, group =     abclabel),size = 3,check_overlap = T)+
     theme(strip.background = element_blank())+
     theme(strip.text = element_text(face="bold", size=10))+
-    theme(panel.spacing.y=unit(0.5, "lines"))
+    theme(panel.spacing.y=unit(0.5, "lines"))+
+    scale_x_continuous(limits = c(-0.4, 0.47), breaks = c(-0.3, 0.0, 0.3))+
+  scale_y_continuous(limits = c(-0.48, 0.27), breaks = c(-0.25, 0.0, 0.25))
+ 
+
+pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/Dist recovery MS/Figures_overleaf/PCOA12panel.pdf", width = 9, height = 4.5)
+PcoAfieldAveragedE001E002_fullN
+dev.off()
+
+
     #geom_text_repel(aes(label=yearlabel),size = 2.5, color="black")
 
 
@@ -1120,9 +1036,9 @@ levels(PCOAandplots198219922004_fullN$abclabel) <- c( "(a) ", "(b) ")
 
 
 PCOAandplots198219922004_fullN$ntrt2  <- mapvalues(PCOAandplots198219922004_fullN$ntrt2, from=c("9", "1", "2", "3", "4","5","6", "7", "8"),
-                               to=c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+                               to=c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
 
-PCOAandplots198219922004_fullN$ntrt2 <- factor(PCOAandplots198219922004_fullN$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+PCOAandplots198219922004_fullN$ntrt2 <- factor(PCOAandplots198219922004_fullN$ntrt2, levels = c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
 
 
 
@@ -1140,9 +1056,9 @@ PcoAplayingfirst2_fullN<-PcoAplayingfirst2_fullN %>% arrange(year)%>% arrange(ex
 
 
 PcoAplayingfirst2_fullN$ntrt2  <- mapvalues(PcoAplayingfirst2_fullN$ntrt2, from=c("9", "1", "2", "3", "4","5","6", "7", "8"),
-                               to=c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+                               to=c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
 
-PcoAplayingfirst2_fullN$ntrt2 <- factor(PcoAplayingfirst2_fullN$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+PcoAplayingfirst2_fullN$ntrt2 <- factor(PcoAplayingfirst2_fullN$ntrt2, levels = c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
 
 
 
@@ -1631,9 +1547,9 @@ levels(confboth_2$abclabel) <- c( "(a) ", "(b) ")
 ##### plot specifications###
 
 allpred_df$ntrt2  <- mapvalues(allpred_df$ntrt2, from=c("9", "1", "2", "3", "4","5","6"),
-                               to=c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro"))
+                               to=c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ"))
 
-allpred_df$ntrt2 <- factor(allpred_df$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro"))
+allpred_df$ntrt2 <- factor(allpred_df$ntrt2, levels = c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ"))
 
 
 allpred_df$exp<-mapvalues(allpred_df$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
@@ -1669,9 +1585,9 @@ groupdistancesboth2_df$exp<- factor(groupdistancesboth2_df$exp, levels = c("Inta
 groupdistancesboth2_df<-groupdistancesboth2_df%>%mutate(ntrt2 = as.factor(ntrt))
 
 groupdistancesboth2_df$ntrt2  <- mapvalues(groupdistancesboth2_df$ntrt2, from=c("9", "1", "2", "3", "4","5","6"),
-                               to=c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro"))
+                               to=c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ"))
 
-groupdistancesboth2_df$ntrt2 <- factor(groupdistancesboth2_df$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro"))
+groupdistancesboth2_df$ntrt2 <- factor(groupdistancesboth2_df$ntrt2, levels = c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ"))
 
 
 groupdistancesboth2_df<-groupdistancesboth2_df %>% mutate(abclabel=exp)
@@ -1789,9 +1705,9 @@ bd_allbothfull_df2$exp<- factor(bd_allbothfull_df2$exp, levels = c("Intact in 19
 
 
 bd_allbothfull_df2$ntrt2  <- mapvalues(bd_allbothfull_df2$ntrt2, from=c("9", "1", "2", "3", "4","5","6", "7", "8"),
-                               to=c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+                               to=c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
 
-bd_allbothfull_df2$ntrt2 <- factor(bd_allbothfull_df2$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+bd_allbothfull_df2$ntrt2 <- factor(bd_allbothfull_df2$ntrt2, levels = c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
 
 
 
@@ -1905,9 +1821,9 @@ bd_allbyfield_2_df$exp<- factor(bd_allbyfield_2_df$exp, levels = c("Intact in 19
 
 
 bd_allbyfield_2_df$ntrt2  <- mapvalues(bd_allbyfield_2_df$ntrt2, from=c("9", "1", "2", "3", "4","5","6", "7", "8"),
-                               to=c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+                               to=c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
 
-bd_allbyfield_2_df$ntrt2 <- factor(bd_allbyfield_2_df$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+bd_allbyfield_2_df$ntrt2 <- factor(bd_allbyfield_2_df$ntrt2, levels = c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
 
 
 
@@ -2629,9 +2545,9 @@ sinuosityavg2<-sinuosityavg_full %>% mutate(ntrt2=ntrt)
 
 
 sinuosityavg2$ntrt2  <- mapvalues(sinuosityavg2$ntrt2, from=c("9", "1", "2", "3", "4","5","6", "7", "8"),
-                               to=c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+                               to=c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
 
-sinuosityavg2$ntrt2 <- factor(sinuosityavg2$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+sinuosityavg2$ntrt2 <- factor(sinuosityavg2$ntrt2, levels = c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
 
 
 sinuosityavg2$exp<-mapvalues(sinuosityavg2$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
@@ -2702,9 +2618,9 @@ sinuosityavgbydecade2<-sinuosityavgbydecade_full %>% mutate(ntrt2=ntrt)
 ## plot specifications
 
 sinuosityavgbydecade2$ntrt2  <- mapvalues(sinuosityavgbydecade2$ntrt2, from=c("9", "1", "2", "3", "4","5","6", "7", "8"),
-                               to=c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+                               to=c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
 
-sinuosityavgbydecade2$ntrt2 <- factor(sinuosityavgbydecade2$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+sinuosityavgbydecade2$ntrt2 <- factor(sinuosityavgbydecade2$ntrt2, levels = c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
 
 
 sinuosityavgbydecade2$exp<-mapvalues(sinuosityavgbydecade2$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
@@ -2825,9 +2741,9 @@ trajdiravg2<-trajdiravg %>% mutate(ntrt2=ntrt)
 
 
 trajdiravg2$ntrt2  <- mapvalues(trajdiravg2$ntrt2, from=c("0", "9", "1", "2", "3", "4","5","6", "7", "8"),
-                               to=c("Never", "None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+                               to=c("Never", "None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
 
-trajdiravg2$ntrt2 <- factor(trajdiravg2$ntrt2, levels = c("Never", "None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+trajdiravg2$ntrt2 <- factor(trajdiravg2$ntrt2, levels = c("Never", "None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
 
 
 trajdiravg2$exp<-mapvalues(trajdiravg2$exp, from=c("0", "1", "2"), to=c("Remnant", "Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
@@ -3038,9 +2954,9 @@ avgTraj_byyear_E001E002_2<-avgTraj_byyear_E001E002_2 %>% mutate(ntrt2=ntrt)
 
 
 avgTraj_byyear_E001E002_2$ntrt2  <- mapvalues(avgTraj_byyear_E001E002_2$ntrt2, from=c("0", "9", "1", "2", "3", "4","5","6", "7", "8"),
-                               to=c("Never", "None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+                               to=c("Never", "None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
 
-avgTraj_byyear_E001E002_2$ntrt2 <- factor(avgTraj_byyear_E001E002_2$ntrt2, levels = c("Never", "None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro", "17 N + micro", "27.2 N + micro"))
+avgTraj_byyear_E001E002_2$ntrt2 <- factor(avgTraj_byyear_E001E002_2$ntrt2, levels = c("Never", "None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
 
 
 
@@ -3252,9 +3168,9 @@ richnessaverage_2<- richnessaverage%>% mutate (year2=as.numeric(as.character(yea
 
 richnessaverage_3<-richnessaverage_2 %>% mutate(ntrt2=ntrt)
 
-richnessaverage_3$ntrt2  <- mapvalues(richnessaverage_3$ntrt2, from=c("9", "1", "2", "4","6"), to=c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
+richnessaverage_3$ntrt2  <- mapvalues(richnessaverage_3$ntrt2, from=c("9", "1", "2", "4","6"), to=c("None", "0 N+μ", "1 N + μ", "3.4 N + μ","9 N + μ"))
 
-richnessaverage_3$ntrt2 <- factor(richnessaverage_3$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
+richnessaverage_3$ntrt2 <- factor(richnessaverage_3$ntrt2, levels = c("None", "0 N+μ", "1 N + μ", "3.4 N + μ","9 N + μ"))
 
 mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title=element_text(size=12))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))+ theme(panel.grid.major = element_line(colour = "gray 85"))+ theme(panel.grid.minor = element_line(colour = "gray 95"))
 
@@ -3345,9 +3261,9 @@ totalbiomassdf2$disk<- factor(totalbiomassdf2$disk, levels = c("Intact in 1982 (
 ##
 totalbiomassdf22<-totalbiomassdf2 %>% mutate(ntrt2=ntrt)
 
-totalbiomassdf22$ntrt2  <- mapvalues(totalbiomassdf22$ntrt2, from=c("9", "1", "2", "4","6"), to=c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
+totalbiomassdf22$ntrt2  <- mapvalues(totalbiomassdf22$ntrt2, from=c("9", "1", "2", "4","6"), to=c("None", "0 N+μ", "1 N + μ", "3.4 N + μ","9 N + μ"))
 
-totalbiomassdf22$ntrt2 <- factor(totalbiomassdf22$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
+totalbiomassdf22$ntrt2 <- factor(totalbiomassdf22$ntrt2, levels = c("None", "0 N+μ", "1 N + μ", "3.4 N + μ","9 N + μ"))
 
 
 totalbiomassdf3<- totalbiomassdf22 %>% mutate(year2=as.numeric(as.character(year))-1981)
@@ -3424,9 +3340,9 @@ sumfuntionalgroupdf2$disk<- factor(sumfuntionalgroupdf2$disk, levels = c("Intact
 
 sumfuntionalgroupdf2<-sumfuntionalgroupdf2 %>% mutate(ntrt2=ntrt)
 
-sumfuntionalgroupdf2$ntrt2  <- mapvalues(sumfuntionalgroupdf2$ntrt2, from=c("9", "1", "2", "4","6"), to=c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
+sumfuntionalgroupdf2$ntrt2  <- mapvalues(sumfuntionalgroupdf2$ntrt2, from=c("9", "1", "2", "4","6"), to=c("None", "0 N+μ", "1 N + μ", "3.4 N + μ","9 N + μ"))
 
-sumfuntionalgroupdf2$ntrt2 <- factor(sumfuntionalgroupdf2$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
+sumfuntionalgroupdf2$ntrt2 <- factor(sumfuntionalgroupdf2$ntrt2, levels = c("None", "0 N+μ", "1 N + μ", "3.4 N + μ","9 N + μ"))
 
 
 sumfuntionalgroupdf2$year<-as.numeric(as.character(sumfuntionalgroupdf2$year))
@@ -3526,8 +3442,8 @@ centroiddf2004_2<-separate(data = centroiddf2004_2, col = expntrt, into = c("exp
 PCOAandplots2004<-PCOAandplots2004%>% mutate(ntrt2=ntrt)%>% mutate(exp2=exp)
 
 PCOAandplots2004$ntrt2  <- mapvalues(PCOAandplots2004$ntrt2, from=c("9", "1", "2", "4","6"),
-                               to=c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
-PCOAandplots2004$ntrt2 <- factor(PCOAandplots2004$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
+                               to=c("None", "0 N+μ", "1 N + μ", "3.4 N + μ","9 N + μ"))
+PCOAandplots2004$ntrt2 <- factor(PCOAandplots2004$ntrt2, levels = c("None", "0 N+μ", "1 N + μ", "3.4 N + μ","9 N + μ"))
 
 
 PCOAandplots2004$exp2<-mapvalues(PCOAandplots2004$exp2, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
@@ -3538,8 +3454,8 @@ PCOAandplots2004$exp2 <- factor(PCOAandplots2004$exp2, levels =c("Intact in 1982
 centroiddf2004_2<-centroiddf2004_2%>% mutate(ntrt2=ntrt)%>% mutate(exp2=exp)
 
 centroiddf2004_2$ntrt2  <- mapvalues(centroiddf2004_2$ntrt2, from=c("9", "1", "2", "4","6"),
-                               to=c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
-centroiddf2004_2$ntrt2 <- factor(centroiddf2004_2$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
+                               to=c("None", "0 N+μ", "1 N + μ", "3.4 N + μ","9 N + μ"))
+centroiddf2004_2$ntrt2 <- factor(centroiddf2004_2$ntrt2, levels = c("None", "0 N+μ", "1 N + μ", "3.4 N + μ","9 N + μ"))
 
 
 centroiddf2004_2$exp2<-mapvalues(centroiddf2004_2$exp2, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
@@ -3648,8 +3564,8 @@ NMDSavg<-NMDSandplots2004 %>% group_by(exp, ntrt) %>% dplyr::summarise(meanAxis1
 NMDSandplots2004_2<-NMDSandplots2004%>% mutate(ntrt2=ntrt)%>% mutate(exp2=exp)
 
 NMDSandplots2004_2$ntrt2  <- mapvalues(NMDSandplots2004_2$ntrt2, from=c("9", "1", "2", "4","6"),
-                               to=c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
-NMDSandplots2004_2$ntrt2 <- factor(NMDSandplots2004_2$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
+                               to=c("None", "0 N+μ", "1 N + μ", "3.4 N + μ","9 N + μ"))
+NMDSandplots2004_2$ntrt2 <- factor(NMDSandplots2004_2$ntrt2, levels = c("None", "0 N+μ", "1 N + μ", "3.4 N + μ","9 N + μ"))
 
 
 NMDSandplots2004_2$exp2<-mapvalues(NMDSandplots2004_2$exp2, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
@@ -3662,8 +3578,8 @@ NMDSandplots2004_2$exp2 <- factor(NMDSandplots2004_2$exp2, levels =c("Intact in 
 NMDSavg_2<-NMDSavg%>% mutate(ntrt2=ntrt)%>% mutate(exp2=exp)
 
 NMDSavg_2$ntrt2  <- mapvalues(NMDSavg_2$ntrt2, from=c("9", "1", "2", "4","6"),
-                               to=c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
-NMDSavg_2$ntrt2 <- factor(NMDSavg_2$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "3.4 N + micro","9 N + micro"))
+                               to=c("None", "0 N+μ", "1 N + μ", "3.4 N + μ","9 N + μ"))
+NMDSavg_2$ntrt2 <- factor(NMDSavg_2$ntrt2, levels = c("None", "0 N+μ", "1 N + μ", "3.4 N + μ","9 N + μ"))
 
 
 NMDSavg_2$exp2<-mapvalues(NMDSavg_2$exp2, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
