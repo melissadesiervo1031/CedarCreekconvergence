@@ -715,7 +715,7 @@ BCdistalldf2<-cbind(plot,BCdistalldf) #merge plot data w/ dissim matrix##
 
 PCOA_allfieldE12_fullN <- pcoa(distE1andE2)  ## takes a while##
 
-#PCOA_allfieldE12 <- cmdscale(distE1andE2)  ## Another way of doing the pcoa that gives same results#
+PCOA_allfieldE12_cmd <- cmdscale(distE1andE2, eig=TRUE, add=FALSE)  ## Another way of doing the pcoa that gives same results#
 
 
 ## extracting the axis scores for each exp##
@@ -732,10 +732,15 @@ PCOAandplotsboth_fullN<-cbind(plot,PCOAaxesboth_fullN )
 
 ####species scores#####
 
+PCOA_allfieldE12_cmd_wscores<-add.spec.scores(PCOA_allfieldE12_cmd, veg,  method='cor.scores')
 
+spscores<-as.data.frame(PCOA_allfieldE12_cmd_wscores$cproj)
+names<-rownames(spscores)
+rownames(spscores) <- NULL
 
+spscores_df <- cbind(names,spscores)
 
-
+spscores_df$names <- with(spscores_df, gsub("mass.above.","", names))
 
 ```
 
@@ -844,6 +849,145 @@ permmaster3_allnut<-subset(permmasterall,sourcevariation=="Disturbance"|sourceva
 ```
 
 
+
+```{r - Conduct permanova: nutrient as quantitative, disturbance, field effect (log data) FULL N GRADIENT}
+
+exp12subset<-subset(da.wide5,year<2005)
+
+
+###add in N as quanitative variable###
+
+
+# N Treatments (Ntrt) Details (from Table 1 Tilman 1987)
+# Ntrt Trt g N/m2/yr Other nutrients 
+# 1     A       0.0      All 
+# 2     B       1.0      All 
+# 3     C       2.0      All 
+# 4     D       3.4      All 
+# 5     E       5.4      All 
+# 6     F       9.5      All 
+# 7     G      17.0      All 
+# 8     H      27.2      All 
+# 9     I       0.0      None 
+
+
+exp12subset$nadd<-exp12subset$ntrt
+
+
+exp12subset$nadd <- mapvalues(exp12subset$nadd, from=c("9", "1", "2", "3", "4","5","6", "7", "8"),
+                               to=c("0", "0", "1", "2", "3.4","5.4","9.5", "17", "27"))
+
+
+
+
+####for this analysis, getting rid of the years where not every field was sampeled##
+
+exp12subset_22<-exp12subset%>%filter(year!=1995)%>%filter(year!=1998)%>%filter(year!=2001)%>%filter(year!=2003)
+
+###move columns##
+
+exp12subset_22$nadd<-as.numeric(as.character(exp12subset_22$nadd))
+
+
+exp12subset_22<-exp12subset_22 %>% select(field, exp, plot, subplot, year, disk, ntrt, expntrtfieldyear, expntrtyear, ntrt2, nadd, `mass.above.ACER NEGUNDO`:`mass.above.VIOLA SP.`   )
+
+
+###drop the control ntrt 9, to do quantitatve N +micro###
+
+exp12subset_33<-subset(exp12subset_22, ntrt!=9 )
+
+
+
+###log transform the biomass data###
+
+justveg<-as.matrix(exp12subset_33[,13:199])
+
+logveg<-log(1+justveg)
+
+exp12subset_33<-cbind(exp12subset_33[,1:12], logveg)
+
+
+
+### Extract two  years year to get the apply function to work#####
+
+da.wide_1990<-subset(exp12subset_33, year=="1990", row.names=NULL)
+
+da.wide_1999<-subset(exp12subset_33, year=="1999", row.names=NULL)
+
+###
+exp12subset_19821991<-subset(exp12subset_33, as.numeric(as.character(year)) < 1992)
+exp12subset_19922004<-subset(exp12subset_33, as.numeric(as.character(year)) >= 1992)
+
+#drop the levels not sampeled
+
+levels(exp12subset_19821991$year)
+exp12subset_19821991$year <- as.factor(as.character(exp12subset_19821991$year))
+
+
+levels(exp12subset_19922004$year)
+exp12subset_19922004$year <- as.factor(as.character(exp12subset_19922004$year))
+
+
+##PERMANOVA###
+
+### investigate the blocking / strata issue ###
+
+## Correct with strata
+ test<-with(da.wide_1990, adonis2(vegdist(da.wide_1990[,11:198]) ~ exp+ntrt+field, data = da.wide_1990,  strata = da.wide_1990$field))
+
+ test2<-adonis2(vegdist(da.wide_1990[,11:198])~exp+ntrt+field, data= da.wide_1990)
+ 
+ #### using strata rescricts permutations to within fields. Makes no difference in Sum of Sqs or R2 (what we report) -- only matters for the p value ####
+ 
+ 
+ ##Do a PERMANOVA looping over years, looking at effect of exp (disturbed or not), ntrt treatment# and field (A, B, C)###
+ 
+##need to do this in two batches because from 1992 on there are fewer plots..####
+
+###
+permallfields1<-lapply(X = split.data.frame(x = exp12subset_19821991, f=exp12subset_19821991$year),function(t){
+  z<-adonis2(vegdist(t[,11:198])~exp+nadd+field, data= da.wide_1990)
+  return(data.frame(z))
+  }
+  )
+
+
+
+permallfields2<-lapply(X = split.data.frame(x = exp12subset_19922004, f=exp12subset_19922004$year),function(t){
+  z<-adonis2(vegdist(t[,11:198])~exp+nadd+field, data= da.wide_1999)
+  return(data.frame(z))
+  }
+  )
+
+
+
+
+##dataframe of results##
+permmaster1<-plyr::ldply(permallfields1, data.frame)
+permmaster2<-plyr::ldply(permallfields2, data.frame)
+
+
+names<-c("Disturbance", "Fertilization", "Field", "residual", "total")
+
+sourcevariation<-rep(names,length(unique(permmaster1$.id)))
+
+permmaster11<-cbind(sourcevariation,permmaster1)
+
+sourcevariation<-rep(names,length(unique(permmaster2$.id)))
+
+permmaster22<-cbind(sourcevariation,permmaster2)
+
+###
+
+permmasterall<-rbind(permmaster11, permmaster22)
+  
+permmaster3_allnut<-subset(permmasterall,sourcevariation=="Disturbance"|sourcevariation=="Fertilization"|sourcevariation=="Field") 
+
+##This dataframe (permmmaster3_allnut) has the results from a permanova for each independent variable (disturbance, field, fertilization) for every year in the dataset w/ everything sampeled. The R2 column is what is plotted in Fig 1 ###
+
+
+
+```
 
 
 
@@ -1113,6 +1257,54 @@ PcOAdecade_fullN<-ggplot(data=PcoAplayingfirst2_fullN, aes(x=meanAxis1  , y=mean
       theme(strip.background = element_blank())+
       geom_text(aes(x = -0.25, y = 0.14, label = abclabel, group =     abclabel),size = 4, color= "black", check_overlap = T)+theme(strip.text = element_blank())
 
+
+```
+
+
+```{r - recreate supplemental fig PCOA species scores}
+
+
+###PCOA species scores using biodiversity package###
+
+
+head(spscores_df)
+
+spscores_df$species<-spscores_df$names
+
+### pull out max and min species for each axis##
+
+
+spscores_dfsubset<-subset(spscores_df, Dim1>0.1|Dim1< (-0.22)|Dim2>0.1|Dim2<(-0.29))
+
+
+##merge with functional group information##
+
+specieslookup<-da_full %>% distinct(species, .keep_all = TRUE)
+
+specieslookup2<-specieslookup %>% dplyr::select(species,functional.group,duration,lifeform, pathway, origin)
+
+
+mergedfuncgroupspscores <- (merge(specieslookup2,spscores_dfsubset, by = 'species', sort=FALSE, all.y=TRUE))
+
+
+####
+mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title=element_text(size=12))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))
+
+
+speciesPCOAplot <- ggplot() + 
+    geom_segment(data=mergedfuncgroupspscores , 
+                 aes(x=0, y=0, xend=Dim1*2, yend=Dim2*2, group=functional.group),                  size=0.5, arrow=arrow()) +
+    geom_text_repel(data=mergedfuncgroupspscores , 
+                    aes(x=Dim1*2, y=Dim2*2, label=names, color=functional.group), nudge_y = -0.04)+mytheme+
+   theme(legend.position="none")+
+    ylab("PCoA 2")+
+    xlab("PCoA 1")
+
+
+
+pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/Dist recovery MS/Figures_overleaf/speciesPCOA.pdf", width = 7, height = 5)
+speciesPCOAplot
+dev.off()
 
 ```
 
