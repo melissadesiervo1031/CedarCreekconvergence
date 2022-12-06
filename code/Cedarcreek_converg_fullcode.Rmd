@@ -669,6 +669,148 @@ da_fieldD_wide[is.na(da_fieldD_wide)] <- 0
 ```
 
 
+### figure for presentation 12/5/2022####
+
+
+##subset to selected nutrient treatments below 9.5 g N##
+
+
+
+```{r - make figure pcoa for research}
+
+
+exp12subset<-subset(da.wide5,year<2005)
+
+exp12subset_1<-subset(exp12subset,ntrt==9|ntrt==1|ntrt==2|ntrt==4|ntrt==6)
+
+
+##make nutrient and years factors#
+
+exp12subset_1$ntrt<-as.factor(exp12subset_1$ntrt)
+exp12subset_1$year<-as.factor(exp12subset_1$year)
+
+
+##arrange the dataframe so that that columns and rows are in right order##
+exp12subsetsorted<-exp12subset_1%>%arrange(year)%>%arrange(plot)%>%arrange(field)%>%arrange(exp)
+
+
+##just the plot data##
+plot<-exp12subsetsorted%>% dplyr::select('field':'ntrt2')
+
+##just the veg data##
+
+veg<-exp12subsetsorted%>% dplyr::select(`mass.above.ACER NEGUNDO`:`mass.above.VIOLA SP.`)
+
+
+
+###log transformation####
+
+vegmatrix<-as.matrix(veg)
+
+logveg<-log(1+vegmatrix)
+
+
+## Bray curtis dissimiliarty matrix##
+distE1andE2<-vegdist(logveg, method="bray")
+BCdistall<-as.matrix(distE1andE2)  ##into a matrix#
+BCdistalldf<-as.data.frame(BCdistall)  #into a dataframe#
+
+BCdistalldf2<-cbind(plot,BCdistalldf) #merge plot data w/ dissim matrix##
+
+##BCdistalldf2 has the plot info and the BC dissimilarity matrix for the entire experiment (E001 and E002, all three fields combined, with a subsetted selection of the ntrt treatments)
+
+###PcOA for both E011 and E002 together####
+
+PCOA_allfieldE12<- pcoa(distE1andE2)  ## takes a while##
+
+#PCOA_allfieldE12_cmd <- cmdscale(distE1andE2, eig=TRUE, add=FALSE)  ## Another way of doing the pcoa that gives same results#
+
+
+## extracting the axis scores for each exp##
+
+PCOAaxesboth<- PCOA_allfieldE12$vectors[,c(1,2)]
+
+
+##merge the axis scores with the plot data ###
+
+PCOAandplotsboth<-cbind(plot,PCOAaxesboth)
+
+##PCOAandplotsboth N has the plot info and the PCOA scores for the entire experiment (E001 and E002, all three fields combined, with a subset of the ntrt treatments)
+
+
+###calculate averages of plots (PCOA and plots both)
+
+PCOAandplotsavg<-PCOAandplotsboth %>% group_by(exp,year,disk,ntrt) %>% dplyr::summarise(meanAxis1=mean(Axis.1, na.rm=TRUE),sdAxis1=sd(Axis.1, na.rm=TRUE),seAxis1=sd(Axis.1, na.rm=TRUE)/sqrt(n()),meanAxis2=mean(Axis.2, na.rm=TRUE),sdAxis2=sd(Axis.2, na.rm=TRUE),seAxis2=sd(Axis.2, na.rm=TRUE)/sqrt(n()), n=n())
+
+
+### subset to the end of time series###
+
+PCOAandplotsboth$year<-as.numeric(as.character(PCOAandplotsboth$year))
+
+PCOAandplots2004<-subset(PCOAandplotsboth, year==2004)
+
+PCOAandplotsavg2004<-subset(PCOAandplotsavg, year==2004)
+
+
+
+PCOAandplots2004$ntrt2=PCOAandplots2004$ntrt
+PCOAandplotsavg2004$ntrt2=PCOAandplotsavg2004$ntrt
+
+
+
+
+
+PCOAandplots2004$ntrt2  <- mapvalues(PCOAandplots2004$ntrt2, from=c("9", "1", "2", "4", "6"),
+                               to=c("None", "0 N + μ", "1 N + μ", "3.4 N + μ","9 N + μ"))
+
+PCOAandplotsavg2004$ntrt2  <- mapvalues(PCOAandplotsavg2004$ntrt2, from=c("9", "1", "2", "4", "6"),
+                               to=c("None", "0 N + μ", "1 N + μ", "3.4 N + μ","9 N + μ"))
+
+PCOAandplots2004$ntrt2  <- factor(PCOAandplots2004$ntrt2 , levels = c("None", "0 N + μ", "1 N + μ", "3.4 N + μ","9 N + μ"))
+
+PCOAandplotsavg2004$ntrt2  <- factor(PCOAandplotsavg2004$ntrt2 , levels = c("None", "0 N + μ", "1 N + μ", "3.4 N + μ","9 N + μ"))
+
+
+PCOAandplots2004$disk<-plyr::mapvalues(PCOAandplots2004$disk, from=c("0", "1"), to=c("Intact in 1982", "Disturbed in 1982"))
+
+PCOAandplotsavg2004$disk<-plyr::mapvalues(PCOAandplotsavg2004$disk, from=c("0", "1"), to=c("Intact in 1982", "Disturbed in 1982"))
+
+
+
+
+
+mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title=element_text(size=12))+theme(plot.title=element_text(size=12) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))
+
+
+
+
+PcOA2004<-ggplot(data=PCOAandplotsavg2004, aes(x=meanAxis1  ,y=meanAxis2 , color=ntrt2)) +
+  geom_hline(yintercept = 0)+geom_vline(xintercept = 0)+
+  geom_point(data=PCOAandplots2004, aes(x=Axis.1, y= Axis.2, color= ntrt2), size=4, alpha=0.2) +
+  geom_errorbar(aes(ymin=meanAxis2-seAxis2, ymax=meanAxis2+seAxis2), color="dark gray", size=0.25) +
+    geom_errorbarh(aes(xmin=meanAxis1-seAxis1, xmax=meanAxis1+seAxis1), color="dark gray", size=0.25)+
+  geom_point(size=6)+
+      ylab("PCoA 2")+
+    xlab("PCoA 1")+
+    facet_grid(~disk) + 
+    scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
+    mytheme+
+    theme(legend.position="right")+
+    scale_shape_manual(values = c(21, 22, 24))+
+      theme(strip.background = element_blank())+theme(strip.text.x = element_text(size = 14))
+
+    
+
+pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/PCOA2004.pdf", width = 8, height = 4)
+PcOA2004
+dev.off()
+
+
+
+```
+
+
+
 ###PERMANOVA AND PCOA FULL N GRADIENT###
 ##this chuck takes a long time to run.....###
 
