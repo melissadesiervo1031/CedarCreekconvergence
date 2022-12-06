@@ -28,6 +28,8 @@ library(gridExtra)
 library(codyn)
 library(indicspecies)
 library(BiodiversityR)
+library(ggrepel)
+library(lme4)
 
 
 
@@ -562,7 +564,6 @@ exp12subset_1<-subset(exp12subset,ntrt==9|ntrt==1|ntrt==2|ntrt==4|ntrt==6)
 ```
 
 
-
 ```{r clean field D data}
 
 
@@ -849,7 +850,6 @@ permmaster3_allnut<-subset(permmasterall,sourcevariation=="Disturbance"|sourceva
 ```
 
 
-
 ```{r - Conduct permanova: nutrient as quantitative, disturbance, field effect (log data) FULL N GRADIENT}
 
 exp12subset<-subset(da.wide5,year<2005)
@@ -988,8 +988,6 @@ permmaster3_allnut<-subset(permmasterall,sourcevariation=="Disturbance"|sourceva
 
 
 ```
-
-
 
 ```{r - recreate FIG 1, R2 FULL N GRADIENT}
 
@@ -1491,330 +1489,9 @@ PcOAdecadeABCD<-ggplot(data=PCOA_ABCD_averagesubset, aes(x=meanAxis1  , y=meanAx
 ```
 
 
-
-
 ###DISPERSION####
-```{r - Calculate the distance TO centroid within ntrt treatments (log data)}
 
-
-###need to have the most recent verion of vegan from github for this to work##
-#https://github.com/vegandevs/vegan/issues/331#
-
-
-#######################
-
-####for this analysis, getting rid of the years where not every field was sampeled##
-
-exp12subset_2<-exp12subset_1%>%filter(year!=1995)%>%filter(year!=1998)%>%filter(year!=2001)%>%filter(year!=2003)
-
-##just the veg data##
-
-veg<-exp12subset_2%>% dplyr::select(`mass.above.ACHILLEA MILLEFOLIUM(LANULOSA)`:`mass.above.VIOLA SP.`)
-
-
-
-###log transformation####
-
-vegmatrix<-as.matrix(veg)
-
-logveg<-log(1+vegmatrix)
-
-
-
-##using the apply function to calculation the dispersion (beta disp) for each nutrient treatment for each year#
-
-bd_allboth<-betadisper(vegdist(logveg),exp12subset_2$expntrtyear, type = "centroid")    ####Note that you have to specify the centroid ##  ##takes a bit##
-
-#bd_allbothEUC<-betadisper(vegdist(logveg, method="euclidean"),exp12subset_2$expntrtyear, type = "centroid")    ##same thing but in Euclidean distance###
-
-##some squared distances are negative and changed to zero##
-
-
-######making group distances into a dataframe with rownames###
-
-bd_allboth_2<-as.data.frame(bd_allboth$group.distances, row.names = rownames(bd_allboth$group.distances))
-
-setDT(bd_allboth_2, keep.rownames = TRUE)[]
-
-
-bd_allboth_df<-separate(data = bd_allboth_2, col = rn, into = c("exp", "ntrt", "year"))
-
-bd_allboth_df$year<-as.numeric(bd_allboth_df$year)
-bd_allboth_df$ntrt<-as.factor(bd_allboth_df$ntrt)
-
-bd_allboth_df$distances<-as.numeric(bd_allboth_df$`bd_allboth$group.distances`)
-
-bd_allboth_df2<-bd_allboth_df%>%mutate(ntrt2 = ntrt)
-
-###this dataframe (bd_allboth_df2) has the average distance to the centroid for each disurbance_nutrient group for each year. Distances = the average Bray dist for 18 plots to their group centroids (what is plotted in Fig 3 a) ##
-
-
-```
-
-
-```{r - AIC table dist TO centroid, TABLE S1 }
-
-####test whether the distance to centroid is best fit by a linear or saturating function##
-
-
-head(bd_allboth_df2)
-
-bd_allboth_df2<-bd_allboth_df2%>% mutate (year2=year-1981)
-
-
-###linear fit###
-
-distlin<-lm(distances~year2, data=bd_allboth_df2)
-
-
-##saturating function##
-distnonlin<- nls(distances~ SSasymp(year2, Asym, R0, lrc), data = bd_allboth_df2)
-
-
-rawaic<-AIC(distlin, distnonlin)
-nR<-dim(bd_allboth_df2)[1]  #Sample size 
-aictable(rawaic,nR)
-
-###nonlinear is the best fit###
-
-```
-
-
-```{r - model fits and error dist TO centroid, TABLE S2}
-
-
-head(bd_allboth_df2)
-
-###https://www.statforbiology.com/nonlinearregression/usefulequations#asymptotic_regression_model###
-
-groupdistancesboth2_df<-bd_allboth_df2%>% mutate(year2=year-1981)
-
-groupdistcontrol<-bd_allboth_df2%>% filter(ntrt==9)%>%mutate(year2=year-1981)
-
-
-###E002 seperate by nutrient and experiment####
-
-controlE002<-subset(groupdistancesboth2_df, ntrt==9 & exp==2)
-E002distntrt1<-subset(groupdistancesboth2_df, ntrt==1 & exp==2)
-E002distntrt2<-subset(groupdistancesboth2_df, ntrt==2 & exp==2)
-E002distntrt4<-subset(groupdistancesboth2_df, ntrt==4 & exp==2)
-E002distntrt6<-subset(groupdistancesboth2_df, ntrt==6 & exp==2)
-
-#
-#E002 #Non linear model fits##
-
-controlE002fit<- nls(distances~ SSasymp(year2, Asym, R0, lrc), data = controlE002)
-E002distntrt1fit<- nls(distances~ SSasymp(year2, Asym, R0, lrc), data = E002distntrt1)
-E002distntrt2fit<- nls(distances~ SSasymp(year2, Asym, R0, lrc), data = E002distntrt2)
-E002distntrt4fit<- nls(distances~ SSasymp(year2, Asym, R0, lrc), data = E002distntrt4)
-E002distntrt6fit<- nls(distances~ SSasymp(year2, Asym, R0, lrc), data = E002distntrt6)
-
-
-##Seperate experiment and N treatments, E001 ##
-
-controlE001<-subset(groupdistancesboth2_df, ntrt==9 & exp==1)
-E001distntrt1<-subset(groupdistancesboth2_df, ntrt==1 & exp==1)
-E001distntrt2<-subset(groupdistancesboth2_df, ntrt==2 & exp==1)
-E001distntrt4<-subset(groupdistancesboth2_df, ntrt==4 & exp==1)
-E001distntrt6<-subset(groupdistancesboth2_df, ntrt==6 & exp==1)
-
-
-####Nonlinear model fits E001##
-
-controlE001fit<- nls(distances~ SSasymp(year2, Asym, R0, lrc), data = controlE001)
-E001distntrt1fit<- nls(distances~ SSasymp(year2, Asym, R0, lrc), data = E001distntrt1)
-E001distntrt2fit<- nls(distances~ SSasymp(year2, Asym, R0, lrc), data = E001distntrt2)
-E001distntrt4fit<- nls(distances~ SSasymp(year2, Asym, R0, lrc), data = E001distntrt4)
-#E001distntrt6fit<- nls(distances~ SSasymp(year2, Asym, R0, lrc), data = E001distntrt6) ##doesn't work...see below###
-
-####this (ntrt6) is weird (have to specify lrc and then it works...##
-
-x6=E001distntrt6$year2
-y6=E001distntrt6$distances
-
-##first, specify the fit##
-asympfunc <- function(x6, Asym, R0, lrc=coef(E002distntrt6fit)[3])
-    Asym + (R0 - Asym) * exp(-exp(lrc) * x6)
-nls(y6 ~ asympfunc(x6, Asym, R0),
-    data = data.frame(x6, y6),
-    start = list(Asym = 0.3,R0=0.5))
-
-
-E001distntrt6fit<-nls(y6 ~ asympfunc(x6, Asym, R0),
-    data = data.frame(x6, y6),
-    start = as.list(coef(E002distntrt6fit)[c(1, 2)]))
-
-###THESE ARE ALL THE VALUES IN TABLE S1###
-
-summary(controlE001fit)
-summary(E001distntrt1fit)
-summary(E001distntrt2fit)
-summary(E001distntrt4fit)
-summary(E001distntrt6fit)
-
-summary(controlE002fit)
-summary(E002distntrt1fit)
-summary(E002distntrt2fit)
-summary(E002distntrt4fit)
-summary(E002distntrt6fit)
-
-
-
-#### get the predictions from each of the NLS models we made for graphing####
-
-predcontrolE001 <- predict(controlE001fit)
-predntrt1E001 <- predict(E001distntrt1fit)
-predntrt2E001 <- predict(E001distntrt2fit)
-predntrt4E001 <- predict(E001distntrt4fit)
-predntrt6E001 <- predict(E001distntrt6fit)
-
-
-predcontrolE002 <- predict(controlE002fit)
-predntrt1E002 <- predict(E002distntrt1fit)
-predntrt2E002 <- predict(E002distntrt2fit)
-predntrt4E002 <- predict(E002distntrt4fit)
-predntrt6E002 <- predict(E002distntrt6fit)
-
-
-predcontrolE001_df<-as.data.frame(cbind(controlE001, pred=predcontrolE001))
-predntrt1E001_df<-as.data.frame(cbind(E001distntrt1, pred=predntrt1E001))
-predntrt2E001_df<-as.data.frame(cbind(E001distntrt2, pred=predntrt2E001))
-predntrt4E001_df<-as.data.frame(cbind(E001distntrt4, pred=predntrt4E001))
-predntrt6E001_df<-as.data.frame(cbind(E001distntrt6, pred=predntrt6E001))
-
-
-
-predcontrolE002_df<-as.data.frame(cbind(controlE002, pred=predcontrolE002))
-predntrt1E002_df<-as.data.frame(cbind(E002distntrt1, pred=predntrt1E002))
-predntrt2E002_df<-as.data.frame(cbind(E002distntrt2, pred=predntrt2E002))
-predntrt4E002_df<-as.data.frame(cbind(E002distntrt4, pred=predntrt4E002))
-predntrt6E002_df<-as.data.frame(cbind(E002distntrt6, pred=predntrt6E002))
-
-
-allpred_df<-rbind(predcontrolE001_df,predntrt1E001_df,predntrt2E001_df,predntrt4E001_df,predntrt6E001_df,predcontrolE002_df,predntrt1E002_df,predntrt2E002_df,predntrt4E002_df,predntrt6E002_df)
-
-
-
-
-
-
-
-```
-
-
-```{r - recreate FIG 3ab, Distance to the centroid (log data)}
-
-
-head(groupdistancesboth2_df)
-
-
-
-
-
-
-##confidence intervals around the control only###
-
-## confidence intervals E001##
-
-confE001 <- as.data.frame(predFit(controlE001fit,interval = "confidence", level= 0.95))
-
-confE001_1<-cbind(controlE001,confE001)
-
-## confidence intervals E002##
-
-confE002 <- as.data.frame(predFit(controlE002fit,interval = "confidence", level= 0.95))
-
-confE002_2<-cbind(controlE002,confE002)
-
-confboth<-rbind(confE001_1,confE002_2)
-
-##combine and add label###
-confboth<-rbind(confE001_1, confE002_2)
-
-confboth_2<-confboth %>% mutate(abclabel=exp)
-levels(confboth_2$abclabel) <- c( "(a) ", "(b) ")
-
-
-
-##### plot specifications###
-
-allpred_df$ntrt2  <- mapvalues(allpred_df$ntrt2, from=c("9", "1", "2", "3", "4","5","6"),
-                               to=c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ"))
-
-allpred_df$ntrt2 <- factor(allpred_df$ntrt2, levels = c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ"))
-
-
-allpred_df$exp<-mapvalues(allpred_df$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-allpred_df$exp<- factor(allpred_df$exp, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-
-
-groupdistcontrol<-groupdistcontrol %>% mutate(abclabel=exp)
-levels(groupdistcontrol$abclabel) <- c("(a) ", "(b) ")
-
-
-groupdistancesboth2_df<-groupdistancesboth2_df %>% mutate(abclabel=exp)
-levels(groupdistancesboth2_df$abclabel)<- c("(a) ", "(b) ")
-
-
-confboth_2$exp<-mapvalues(confboth_2$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-confboth_2$exp<- factor(confboth_2$exp, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-
-groupdistcontrol$exp<-mapvalues(groupdistcontrol$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-groupdistcontrol$exp<- factor(groupdistcontrol$exp, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-
-
-
-groupdistancesboth2_df$exp<-mapvalues(groupdistancesboth2_df$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-groupdistancesboth2_df$exp<- factor(groupdistancesboth2_df$exp, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-groupdistancesboth2_df<-groupdistancesboth2_df%>%mutate(ntrt2 = as.factor(ntrt))
-
-groupdistancesboth2_df$ntrt2  <- mapvalues(groupdistancesboth2_df$ntrt2, from=c("9", "1", "2", "3", "4","5","6"),
-                               to=c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ"))
-
-groupdistancesboth2_df$ntrt2 <- factor(groupdistancesboth2_df$ntrt2, levels = c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ"))
-
-
-groupdistancesboth2_df<-groupdistancesboth2_df %>% mutate(abclabel=exp)
-levels(groupdistancesboth2_df$abclabel) <- c( "(a) ", "(b) ")
-
-
-ann_textdisk1 <- data.frame(year2 = c(12,12), distances =c(0.7, 0.7),exp= c("Intact in 1982 (E001)","Disturbed in 1982 (E002)"), ntrt2=c("None", "None"), abclabel = factor(c("(a) ","(b) " ),levels = c("(a) ", "(b) ")))
-
-####
-
-
-
-mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title.x=element_text(size=12))+theme(axis.title.y=element_text(size=10))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))+ theme(panel.grid.major = element_line(colour = "gray 85"))+ theme(panel.grid.minor = element_line(colour = "gray 95"))
-
-
-disttocentroidplot<- ggplot(data=groupdistancesboth2_df) +
-    geom_point(data=groupdistancesboth2_df, aes(x=as.numeric(as.character(year2)), y=distances, group=ntrt2, color=ntrt2)) +
-    geom_point(data=groupdistcontrol, aes(x=as.numeric(as.character(year2)), y=distances),     color="gray45") +
-    geom_line(data=allpred_df,aes(x=as.numeric(as.character(year2)), y=pred, group=ntrt2, color=ntrt2) )+
-    geom_ribbon(data=confboth_2, aes(ymin=lwr, ymax=upr, x=year2), color=NA, alpha=0.2)+
-    facet_grid(~exp)+ 
-    ylab(expression('Average distance to group centroid'))+
-    xlab("Time since experiment")+
-    mytheme+
-    theme(legend.position="right")+
-    theme(legend.title = element_blank()) + 
-    scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
-    theme(strip.text = element_text(size=12, face="bold"))+
-     theme(strip.background = element_blank())+
-     geom_text(aes(x = 1.5, y = 0.60, label = abclabel, group =     abclabel),size = 4,check_overlap = T)
-
-```
-
-
-###DISPERSION WITH ALL N TREATMENTS###
+###DISPERSION WITHIN ALL N TREATMENTS###
 ```{r - Calculate the distance TO centroid within ntrt treatments all treatments (log data)}
 
 
@@ -1869,7 +1546,7 @@ bd_allbothfull_df$ntrt<-as.factor(bd_allbothfull_df$ntrt)
 
 bd_allbothfull_df$distances<-as.numeric(bd_allbothfull_df$`bd_allbothfull$group.distances`)
 
-bd_allbothfull_df2<-bd_allbothfull_df%>%mutate(ntrt2 = ntrt)
+bd_allbothfull_df2<-bd_allbothfull_df%>%mutate(ntrt2 = ntrt)%>%mutate(year2 = year-1981)
 
 ###this dataframe (bd_allboth_fulldf2) has the average distance to the centroid for each disurbance_nutrient group for each year. Distances = the average Bray dist for 18 plots to their group centroids (what is plotted in Fig 3 a) ##
 
@@ -1879,12 +1556,75 @@ bd_allbothfull_df2<-bd_allbothfull_df%>%mutate(ntrt2 = ntrt)
 
 ```
 
+```{r - AIC table dist TO centroid, TABLE S1 }
 
-### PLOT DISPERSION WITH ALL N TREATMENTS###
+####test whether the distance to centroid is best fit by a linear or saturating function##
+
+
+head(bd_allbothfull_df2)
+
+bd_allbothfull_df2<-bd_allbothfull_df2%>% mutate (year2=year-1981)
+
+
+##null##
+
+nulllin<-lm(distances~1, data=bd_allbothfull_df2)
+
+
+###linear fit###
+
+distlin<-lm(distances~year2, data=bd_allbothfull_df2)
+
+
+##saturating function##
+distnonlin<- nls(distances~ SSasymp(year2, Asym, R0, lrc), data = bd_allbothfull_df2)
+
+
+###quadratic function###
+
+distquad<-lm(distances~year2+I(year2^2), data=bd_allbothfull_df2)
+
+
+
+rawaic<-AIC(nulllin, distlin, distnonlin, distquad)
+nR<-dim(bd_allbothfull_df2)[1]  #Sample size 
+aictable(rawaic,nR)
+
+###QUADRACTIC is the best fit (now that we have the highest nutrient treatments###
+
+```
+
+```{r - model fits and error dist TO centroid quadratic, TABLE S2}
+
+
+head(bd_allbothfull_df2)
+
+bd_allbothfull_df2<-bd_allbothfull_df2%>% mutate (year2=year-1981) %>% mutate(expntrt= paste(exp,ntrt, sep = '_'))
+
+
+
+####
+quadraticfits <- lmList(distances ~ year2+ I(year2^2) | expntrt, data=bd_allbothfull_df2)
+
+quadraticfits_df <- data.frame(Subject=rownames(coef(fm1)),coef(fm1),check.names=FALSE)
+
+
+
+
+```
+
+
+### PLOT DISPERSION WITHIN ALL N TREATMENTS###
 ```{r - recreate FIG 3ab, w/ ALL nutrient treatments (log data)}
 
 
 head(bd_allbothfull_df2)
+
+
+bd_allbothfull_df2<-bd_allbothfull_df2 %>% mutate(abclabel=exp)
+
+
+bd_allbothfull_df2$abclabel<-mapvalues(bd_allbothfull_df2$abclabel, from=c("1", "2"), to=c("(a)", "(b)"))
 
 
 
@@ -1897,58 +1637,63 @@ bd_allbothfull_df2$exp<- factor(bd_allbothfull_df2$exp, levels = c("Intact in 19
 
 
 bd_allbothfull_df2$ntrt2  <- mapvalues(bd_allbothfull_df2$ntrt2, from=c("9", "1", "2", "3", "4","5","6", "7", "8"),
-                               to=c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
+                               to=c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9.5 N + μ", "17 N + μ", "27.2 N + μ"))
 
-bd_allbothfull_df2$ntrt2 <- factor(bd_allbothfull_df2$ntrt2, levels = c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
+bd_allbothfull_df2$ntrt2 <- factor(bd_allbothfull_df2$ntrt2, levels = c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9.5 N + μ", "17 N + μ", "27.2 N + μ"))
+
+
+##just take out control for figure###
+
+
+bd_allbothfull_control=subset(bd_allbothfull_df2, ntrt==9)
 
 
 
 mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title.x=element_text(size=12))+theme(axis.title.y=element_text(size=10))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))+ theme(panel.grid.major = element_line(colour = "gray 85"))+ theme(panel.grid.minor = element_line(colour = "gray 95"))
 
 
-disttocentroidplot<- ggplot(bd_allbothfull_df2) +
-    geom_point(data=bd_allbothfull_df2, aes(x=as.numeric(as.character(year)), y=distances, group=ntrt2, color=ntrt2)) +
-   geom_smooth(data=bd_allbothfull_df2,   aes(x=as.numeric(as.character(year)), y=distances, group=ntrt2, color=ntrt2), method="loess", se=FALSE) +
-   facet_grid(~exp)+ 
-    ylab(expression('Average distance to group centroid'))+
+
+
+disttocentroidplot<- ggplot(bd_allbothfull_df2, aes(x=year2, y=distances, group=ntrt2, color=ntrt2)) +
+    geom_point() +
+    facet_grid(~exp)+ 
+    ylab(expression('Average distance to nutrient centroid'))+
     xlab("Time since experiment")+
+    stat_smooth(method = "lm", formula = y ~ x + I(x^2), size = 0.5, se=FALSE)+
     mytheme+
     theme(legend.position="right")+
     theme(legend.title = element_blank()) + 
     theme(strip.text = element_text(size=12, face="bold"))+
-     theme(strip.background = element_blank())
+     theme(strip.background = element_blank())+
+    scale_colour_manual(values = c("dark gray","#f9cb35", "#f98e09", "#e45a31", "#bc3754", "#8a226a", "#57106e", "#210c4a", "#000004"))+
+   stat_smooth(data=bd_allbothfull_control,aes(x=year2, y=distances), method = "lm", formula = y ~ x + I(x^2), size = 0.5)+ guides(color=guide_legend(override.aes=list(fill=NA)))+ geom_text(aes(x = 2, y = 0.6, label = abclabel, group = abclabel),size = 4, color= "black", check_overlap = T)
+    
 
 ```
 
 
-
-###DISPERSION WITH ALL N TREATMENTS AND BY FIELD ###
+###DISPERSION WITHIN ALL N TREATMENTS AND BY FIELD ###
 ```{r - Calculate the distance TO centroid within ntrt treatments all treatments (log data)}
 
 
 ###need to have the most recent verion of vegan from github for this to work##
 #https://github.com/vegandevs/vegan/issues/331#
 
-##START W/ DATA SET FOR E001 that only goes to 2004, and E002 to 2019 (fields A and C)##
+##Used the datasubsetted to before 2004 ##
 
 head(da.wide5)
 
-####check the plotyears####
+####All nutrient treatments....####
 
-
-plotcountcheck5<-da.wide5%>%group_by(exp, field, year) %>%  tally()
-
-plotcountcheck55<-da.wide5%>%group_by(exp, year) %>%  tally()
-
-###### time series only extends > 2004 for E002###
+exp12subset<-subset(da.wide5,year<2005)
 
 
 ##plot data##
-plot_full<-da.wide5%>%dplyr::select(field:expntrtyear) %>% mutate(expfieldplotyear= paste(exp,field,plot,year, sep = '_'))
+plot_full<-exp12subset%>%dplyr::select(field:expntrtyear) %>% mutate(expfieldplotyear= paste(exp,field,plot,year, sep = '_'))
 
 ##just the veg data##
 
-veg_full<-da.wide5%>% dplyr::select(`mass.above.ACER NEGUNDO` :`mass.above.VIOLA SP.`)
+veg_full<-exp12subset%>% dplyr::select(`mass.above.ACER NEGUNDO` :`mass.above.VIOLA SP.`)
 
 
 
@@ -1984,8 +1729,6 @@ bd_allbyfield_2_df$ntrt<-as.factor(bd_allbyfield_2_df$ntrt)
 
 bd_allbyfield_2_df$distances<-as.numeric(bd_allbyfield_2_df$`bd_allbyfield$group.distances`)
 
-bd_allbyfield_2_df<-bd_allbyfield_2_df%>%mutate(ntrt2 = ntrt)%>% mutate(year2=year-1981)
-
 ###this dataframe (bd_allbyfield_2_df) has the average distance to the centroid for each disurbance_nutrient group in each field for each year. Distances = the average Bray dist for 6 plots to their group centroids (what is plotted in Fig 3 a) ##
 
 ## INCLUDES ALL NUTRIENT GROUPS BY FIELD###
@@ -1996,13 +1739,15 @@ bd_allbyfield_2_df<-bd_allbyfield_2_df%>%mutate(ntrt2 = ntrt)%>% mutate(year2=ye
 
 
 
-###PLOT DISPERSION WITH ALL N TREATMENTS AND BY FIELD ###
-```{r - recreate FIG 3ab, w/ ALL nutrient treatments BY FIELD (log data)}
+
+###PLOT DISPERSION WITHIN ALL N TREATMENTS BY FIELD ###
+```{r - recreate supplemental fig, w/ ALL nutrient treatments BY FIELD (log data)}
 
 
-head(bd_allbyfield_2_df)
 
+bd_allbyfield_2_df<-bd_allbyfield_2_df %>% mutate(abclabel=exp)%>% mutate(ntrt2=ntrt)%>% mutate(year2=year-1981)
 
+bd_allbyfield_2_df$abclabel<-mapvalues(bd_allbyfield_2_df$abclabel, from=c("1", "2"), to=c("(a)", "(b)"))
 
 ##### plot specifications###
 
@@ -2013,50 +1758,64 @@ bd_allbyfield_2_df$exp<- factor(bd_allbyfield_2_df$exp, levels = c("Intact in 19
 
 
 bd_allbyfield_2_df$ntrt2  <- mapvalues(bd_allbyfield_2_df$ntrt2, from=c("9", "1", "2", "3", "4","5","6", "7", "8"),
-                               to=c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
+                               to=c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9.5 N + μ", "17 N + μ", "27.2 N + μ"))
 
-bd_allbyfield_2_df$ntrt2 <- factor(bd_allbyfield_2_df$ntrt2, levels = c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
+bd_allbyfield_2_df$ntrt2 <- factor(bd_allbyfield_2_df$ntrt2, levels = c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9.5 N + μ", "17 N + μ", "27.2 N + μ"))
 
 
+bd_allbyfield_2_df$field  <- mapvalues(bd_allbyfield_2_df$field, from=c("A", "B", "C"),
+                               to=c("Field A", "Field B", "Field C"))
 
 
 mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title.x=element_text(size=12))+theme(axis.title.y=element_text(size=10))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))+ theme(panel.grid.major = element_line(colour = "gray 85"))+ theme(panel.grid.minor = element_line(colour = "gray 95"))
 
 
 disttocentroidplotBYFIELD<- ggplot(bd_allbyfield_2_df, aes(x=year2, y=distances, group=ntrt2, color=ntrt2)) +
-    geom_point()  +
-   geom_smooth(method="loess", se=FALSE) +
-   facet_grid(vars(field), vars(exp))+ 
-    ylab(expression('Average distance to group centroid'))+
+  geom_smooth(method="lm", se=FALSE, size=0.5) +
+   geom_point()  + 
+  facet_grid(vars(field), vars(exp))+ 
+    ylab(expression('Average distance to nutrient group centroid'))+
     xlab("Time since experiment")+
     mytheme+
     theme(legend.position="right")+
     theme(legend.title = element_blank()) + 
     theme(strip.text = element_text(size=12, face="bold"))+
-     theme(strip.background = element_blank())
+     theme(strip.background = element_blank())+
+    scale_colour_manual(values = c("dark gray","#f9cb35", "#f98e09", "#e45a31", "#bc3754", "#8a226a", "#57106e", "#210c4a", "#000004"))+scale_y_continuous(breaks=c(0.1, 0.2, 0.3, 0.4))
 
 
 
-disttocentroidplotBYFIELD_2<- ggplot(bd_allbyfield_2_df, aes(x=year2, y=distances)) +
-    geom_point()  +
-   geom_smooth(method="lm", se=FALSE) +
-   facet_grid(vars(field), vars(exp))+ 
-    ylab(expression('Average distance to group centroid'))+
+disttocentroidplotBYFIELDloess<- ggplot(bd_allbyfield_2_df, aes(x=year2, y=distances, group=ntrt2, color=ntrt2)) +
+       geom_smooth(method="loess", se=FALSE, size=0.5) +
+  geom_point()  + 
+  facet_grid(vars(field), vars(exp))+ 
+    ylab(expression('Average distance to nutrient group centroid'))+
     xlab("Time since experiment")+
     mytheme+
     theme(legend.position="right")+
     theme(legend.title = element_blank()) + 
     theme(strip.text = element_text(size=12, face="bold"))+
-     theme(strip.background = element_blank())
+     theme(strip.background = element_blank())+
+    scale_colour_manual(values = c("dark gray","#f9cb35", "#f98e09", "#e45a31", "#bc3754", "#8a226a", "#57106e", "#210c4a", "#000004"))+scale_y_continuous(breaks=c(0.1, 0.2, 0.3, 0.4))
+
+
+
+
+pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/Dist recovery MS/Figures_overleaf/distnutcentroidsfield.pdf", width = 7, height = 6)
+disttocentroidplotBYFIELD
+dev.off()
+
+
+
+pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/Dist recovery MS/Figures_overleaf/distnutcentroidsfieldloess.pdf", width = 7, height = 6)
+disttocentroidplotBYFIELDloess
+dev.off()
 
 
 ```
 
 
-
-
 ##let's see whats going on with E001 field C compared to B...###
-
 
 ```{r - Exploring E001 field C (versus field B) }
 
@@ -2098,162 +1857,11 @@ E001fieldBandC<-ggplot(PCOAandplotsE001ABsubset, aes(x=Axis.1, y=Axis.2, color=n
 
 ```
 
-######## DISTANCE BETWEEN CENTROIDS#############
-
-```{r - Calculate the distance BTWN centroids (logdata) }
-
-##pulling out the group centroids by year####
-
-centroiddf<-as.data.frame(bd_allboth[["centroids"]])
-
-centroiddf_2<-centroiddf[,1:2]
-
-centroiddf_2 <- tibble::rownames_to_column(centroiddf_2, "expntrtyear")
-
-centroiddf_2<-separate(data = centroiddf_2, col = expntrtyear, into = c("exp", "ntrt", "year"))
-
-centroiddf_3<-centroiddf_2%>% mutate(expyear= paste(exp,year, sep = '_')) 
-
-
-###grand mean centroid for all treatments each year###
-
-grandcentroid<-centroiddf_2%>% group_by(exp, year) %>% dplyr::summarise(PcoA1centroid=mean(PCoA1, na.rm=TRUE),PcoA2centroid=mean(PCoA2, na.rm=TRUE))%>% mutate(expyear= paste(exp,year, sep = '_')) 
-
-
-### merge the treatments means with the grand mean centroid for each year##
-
-centroiddf_3<-merge(data.frame(centroiddf_3), data.frame(grandcentroid), by = "expyear", all = TRUE)
-
-###calculate the distance from each centroid to grand centroid using pythagoreum theorem###
-
-centroiddf_4<-centroiddf_3 %>% mutate(distgrandcent=sqrt((PcoA1centroid- PCoA1)^2+(PcoA2centroid-PCoA2)^2))
-
-
-###average distance of each group to its grand mean##
-
-centroiddists<-centroiddf_4%>% group_by(expyear) %>% dplyr::summarise(meandist=mean(distgrandcent, na.rm=TRUE))%>%separate(col = expyear, into = c("exp", "year"))
-
-
-##this dataframe (centroidsdists) has the average distance between nutrient group centroids for each year, for each experiment####
-
-```
-
-```{r - AIC table dist BTWN centroid, TABLE S3 }
-
-
-centroiddists2<-centroiddists%>% mutate (year2=as.numeric(as.character(year))-1981)
-
-###linear fit###
-
-distbtwnlin<-lm(meandist~year2, data=centroiddists2)
-
-
-##saturating function##
-distbtwnnonlin<- nls(meandist~ SSasymp(year2, Asym, R0, lrc), data = centroiddists2)
-
-
-rawaic<-AIC(distbtwnlin, distbtwnnonlin)
-nR<-dim(bd_allboth_df2)[1]  #Sample size 
-aictable(rawaic,nR)
-
-###Nonlinear is the best fit###
-
-```
-
-```{r - recreate FIG 3 cd, distance BTWN centroids (logdata)}
-
-centroiddists$year<-as.numeric(as.character(centroiddists$year))
-
-centroiddists_2<-centroiddists%>% mutate(year2=year-1981)
-
-
-####subset by exp###
-
-centroiddists_E001<-subset(centroiddists_2, exp==1)
-centroiddists_E002<-subset(centroiddists_2, exp==2)
-
-
-###https://www.r-bloggers.com/2021/07/asymptotic-confidence-intervals-for-nls-regression-in-r/##
-
-asympfitcentroidE001<- nls(meandist~ SSasymp(year2, Asym, R0, lrc), data = centroiddists_E001)
-
-asympfitcentroidE002 <- nls(meandist~ SSasymp(year2, Asym, R0, lrc), data = centroiddists_E002)
-
-
-###confidence intervals around fit###
-
-
-new.dataE001 <- data.frame(year2=centroiddists_E001$year2)
-new.dataE002 <- data.frame(year2=centroiddists_E002$year2)
-
-
-confE001_centroid <- as_tibble(predFit(asympfitcentroidE001, newdata = new.dataE001, interval = "confidence", level= 0.95)) %>% mutate(year2 = new.dataE001$year2)
-
-confE001_centroiddf<-as.data.frame(confE001_centroid)
-
-confE001_centroiddf2<-cbind(centroiddists_E001, confE001_centroiddf)
-
-
-confE002_centroid <- as_tibble(predFit(asympfitcentroidE002, newdata = new.dataE002, interval = "confidence", level= 0.95)) %>% mutate(year2 = new.dataE002$year2)
-
-
-confE002_centroiddf<-as.data.frame(confE002_centroid)
-
-confE002_centroiddf2<-cbind(centroiddists_E002, confE002_centroiddf)
-
-
-      ##combine togeter and add abc label##
-confcentroidboth<-rbind(confE001_centroiddf2, confE002_centroiddf2)
-
-
-###for plotting####
-
-
-centroiddists_2$exp<-mapvalues(centroiddists_2$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-centroiddists_2$exp<- factor(centroiddists_2$exp, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-
-centroiddists_3<-centroiddists_2%>% mutate(abclabel=exp)
-
-levels(centroiddists_3$abclabel) <- c( "(c) ", "(d) ")
-
-
-confcentroidboth$exp<-mapvalues(confcentroidboth$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-confcentroidboth$exp<- factor(confcentroidboth$exp, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-
-confcentroidboth_2<-confcentroidboth[,1:7] %>% mutate(abclabel=exp)
-
-levels(confcentroidboth_2$abclabel) <- c( "(c) ", "(d) ")
-
-
-
-distbetweencentroids<-ggplot(data=centroiddists_3,aes(x=as.numeric(as.character(year2)),y=meandist)) +
-    geom_point() +
-    facet_grid(~exp) +
-    ylab(expression('Average distance between group centroids'))+
-    xlab("Time since experiment (years)")+
-    geom_smooth(method="nls", formula=y~SSasymp(x, Asym, R0, lrc), colour = "black", size = 0.5, se=F, fullrange=T)+
-    geom_ribbon(data=confcentroidboth_2, aes(ymin=lwr, ymax=upr), color=NA, fill = "gray1", alpha=0.2)+
-    mytheme+
-    theme(legend.position="none")+
-     theme(strip.text = element_blank())+
-     theme(strip.background = element_blank())+
-     geom_text(aes(x = 1.5, y = 0.18, label = abclabel, group =     abclabel),size = 4,check_overlap = T)
-  
-
-
-
-```
-
 
 
 ######## DISTANCE BETWEEN CENTROIDS ALL N ###
 
-
-###DISPERSION WITH ALL N TREATMENTS###
+###DISPERSION BTWN N TREATMENTS###
 ```{r - Calculate the distance BETWEEM centroids all ntrt treatments all treatments (log data)}
 
 
@@ -2299,49 +1907,115 @@ centroiddists_full<-centroiddf_full_4%>% group_by(expyear) %>% dplyr::summarise(
 
 ```
 
+```{r - AIC table dist BTWN centroid, TABLE S3 }
+
+
+centroiddists_full2<-centroiddists_full%>% mutate (year2=as.numeric(as.character(year))-1981)
+
+##null##
+distnull<-lm(meandist~1, data=centroiddists_full2)
+
+
+
+###linear fit###
+
+distbtwnlin<-lm(meandist~year2, data=centroiddists_full2)
+
+
+##saturating function##
+distbtwnnonlin<- nls(meandist~ SSasymp(year2, Asym, R0, lrc), data = centroiddists_full2)
+
+##quadratic##
+
+
+distbtwnquad<-lm(meandist~year2+I(year2^2), data=centroiddists_full2)
+
+
+rawaic<-AIC(distnull, distbtwnlin, distbtwnnonlin,distbtwnquad)
+nR<-dim(bd_allboth_df2)[1]  #Sample size 
+aictable(rawaic,nR)
+
+###Nonlinear is the best fit###
+
+```
 
 ```{r - recreate FIG 3 cd, distance BTWN centroids all ntrt treatmetns (logdata)}
 
 centroiddists_full$year<-as.numeric(as.character(centroiddists_full$year))
 
-centroiddists_full_2<-centroiddists_full%>% mutate(year2=year-1981)
+centroiddists_full_2<-centroiddists_full%>% mutate(year2=year-1981)%>%mutate(abclabel=exp)
 
+
+
+centroiddists_full_2$abclabel<-mapvalues(centroiddists_full_2$abclabel, from=c("1", "2"), to=c("(c)", "(d)"))
 
 ####subset by exp###
 
-centroiddists_full_E001<-subset(centroiddists_full, exp==1)
-centroiddists_full_E002<-subset(centroiddists_full, exp==2)
+centroiddists_full_E001<-subset(centroiddists_full_2, exp==1)
+centroiddists_full_E002<-subset(centroiddists_full_2, exp==2)
+
+
 
 
 ###https://www.r-bloggers.com/2021/07/asymptotic-confidence-intervals-for-nls-regression-in-r/##
 
-#asympfitcentroidE001_full<- nls(meandist~ SSasymp(year2, Asym, R0, lrc), data = centroiddists_full_E001)
+asympfitcentroidE001_full<- nls(meandist~ SSasymp(year2, Asym, R0, lrc), data = centroiddists_full_E001)
 
-#asympfitcentroidE002_full <- nls(meandist~ SSasymp(year2, Asym, R0, lrc), data = centroiddists_full_E002)
+asympfitcentroidE002_full <- nls(meandist~ SSasymp(year2, Asym, R0, lrc), data = centroiddists_full_E002)
 
+
+
+###confidence intervals around fit###
+
+
+new.dataE001 <- data.frame(year2=centroiddists_full_E001$year2)
+new.dataE002 <- data.frame(year2=centroiddists_full_E002$year2)
+
+
+confE001_centroid <- as_tibble(predFit(asympfitcentroidE001_full, newdata = new.dataE001, interval = "confidence", level= 0.95)) %>% mutate(year2 = new.dataE001$year2)
+
+confE001_centroiddf<-as.data.frame(confE001_centroid)
+
+confE001_centroiddf2<-cbind(centroiddists_full_E001, confE001_centroiddf)
+
+
+confE002_centroid <- as_tibble(predFit(asympfitcentroidE002_full, newdata = new.dataE002, interval = "confidence", level= 0.95)) %>% mutate(year2 = new.dataE002$year2)
+
+
+confE002_centroiddf<-as.data.frame(confE002_centroid)
+
+confE002_centroiddf2<-cbind(centroiddists_full_E002, confE002_centroiddf)
+
+
+      ##combine togeter and add abc label##
+confcentroidboth<-rbind(confE001_centroiddf2, confE002_centroiddf2)
+
+confcentroidboth<-confcentroidboth[,1:8]
 
 
 ###for plotting####
 
 
+centroiddists_full_2$exp<-mapvalues(centroiddists_full_2$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
 
+centroiddists_full_2$exp<- factor(centroiddists_full_2$exp, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
 
-centroiddists_full$exp<-mapvalues(centroiddists_full$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+confcentroidboth$exp<-mapvalues(confcentroidboth$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
 
-centroiddists_full$exp<- factor(centroiddists_full$exp, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-
+confcentroidboth$exp <- factor(centroiddists_full_2$exp, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
 
 distbetweencentroids_fullN<-ggplot(data=centroiddists_full_2,aes(x=as.numeric(as.character(year2)),y=meandist)) +
     geom_point() +
     facet_grid(~exp) +
-    ylab(expression('Average distance between group centroids'))+
+    ylab(expression('Average distance between nutrient centroids'))+
     xlab("Time since experiment (years)")+
-    geom_smooth(method="loess")+
+     geom_smooth(method="nls", formula=y~SSasymp(x, Asym, R0, lrc), colour = "black", size = 0.5, se=F, fullrange=T)+
+  geom_ribbon(data=confcentroidboth, aes(ymin=lwr, ymax=upr), color=NA, fill = "gray1", alpha=0.2)+
+      mytheme+
     theme(legend.position="none")+
      theme(strip.text = element_blank())+
      theme(strip.background = element_blank())+
-    mytheme
+    mytheme+ geom_text(aes(x = 2, y = 0.22, label = abclabel, group = abclabel),size = 4, color= "black", check_overlap = T)+theme(strip.text = element_blank())
  
   
 
@@ -2353,7 +2027,7 @@ distbetweencentroids_fullN<-ggplot(data=centroiddists_full_2,aes(x=as.numeric(as
 
 ######## DISTANCE BETWEEN CENTROIDS ALL N and BY FIELD###
 
-```{r - recreate FIG 3 cd, distance BTWN centroids BY FIELD (logdata)}
+```{r - recreate supplemental figure, distance BTWN centroids BY FIELD (logdata)}
 
 head(bd_allbyfield_2_df)
 
@@ -2400,71 +2074,27 @@ centroiddistsbyfield_full$exp<- factor(centroiddistsbyfield_full$exp, levels = c
 centroiddistsbyfield_full_2<-centroiddistsbyfield_full%>% mutate(year2=as.numeric(year)-1981)
 
 
+centroiddistsbyfield_full_2$field  <- mapvalues(centroiddistsbyfield_full_2$field, from=c("A", "B", "C"),
+                               to=c("Field A", "Field B", "Field C"))
 
 distbetweencentroidsbyfield_fullN<-ggplot(data=centroiddistsbyfield_full_2,aes(x=as.numeric(as.character(year2)),y=meandist)) +
     geom_point() +
     facet_grid(vars(field), vars(exp))+ 
-    ylab(expression('Average distance between group centroids'))+
+    ylab(expression('Average distance between nutrient group centroids'))+
     xlab("Time since experiment (years)")+
-    geom_smooth(method="loess")+
+    geom_smooth(method="loess", colour = "black", size = 0.5, se=F, fullrange=T)+
     theme(legend.position="none")+
-     theme(strip.text = element_blank())+
-     theme(strip.background = element_blank())+
-    mytheme
-
-
-
-
-```
-
-
-
-
-#### DISPERSION BY FIELD WITH ALL NUTRIENT TREATMENTS####
-
-```{r - Model fits and error dist BTWN centroid, TABLE S4}
-
-
-#dist between centroids#
-asympfitcentroidE001
-asympfitcentroidE002
-
-summary(asympfitcentroidE001)
-summary(asympfitcentroidE002)
-
-```
-
-
-```{r - recreate FIG 3 abcd}
-
-quaddisttocentroidplotnox<- ggplot(data=groupdistancesboth2_df) +
-    geom_point(data=groupdistancesboth2_df, aes(x=as.numeric(as.character(year2)), y=distances, group=ntrt2, color=ntrt2)) +
-    geom_point(data=groupdistcontrol, aes(x=as.numeric(as.character(year2)), y=distances),     color="gray45") +
-    geom_line(data=allpred_df,aes(x=as.numeric(as.character(year2)), y=pred, group=ntrt2, color=ntrt2) )+
-    geom_ribbon(data=confboth_2, aes(ymin=lwr, ymax=upr, x=year2), color=NA, alpha=0.2)+
-    facet_grid(~exp)+ 
-    ylab(expression('Average distance to group centroid'))+
-    xlab("Time since experiment")+
+   mytheme+
     theme(legend.position="right")+
-    mytheme+
     theme(legend.title = element_blank()) + 
-    scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
     theme(strip.text = element_text(size=12, face="bold"))+
-     theme(strip.background = element_blank())+
-     geom_text(aes(x = 1.5, y = 0.60, label = abclabel, group =     abclabel),size = 4,check_overlap = T)+
-  theme(axis.title.x=element_blank(),
-        axis.text.x=element_blank(),
-        axis.ticks.x=element_blank())
+     theme(strip.background = element_blank())
 
 
-disttocentroidplot_2<-quaddisttocentroidplotnox+ theme(legend.position = c(0.85, 0.75))+theme(legend.text = element_text(size = 8))+ guides(color = guide_legend(override.aes = list(size = 0.5)))+theme(legend.margin = margin(0, 0, 0, 0))+theme(legend.spacing.y = unit(0, "mm"))+ theme(legend.key.size = unit(1.5, "mm"))+ scale_y_continuous(labels = scales::number_format(accuracy = 0.01))
 
-
-    
-g11 <- ggplotGrob(disttocentroidplot_2)
-g22 <- ggplotGrob(distbetweencentroids)
-
-grid.arrange(g11, g22 , ncol = 1, heights = c(1, 1))
+pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/Dist recovery MS/Figures_overleaf/distBTWNnutcentroidsfield.pdf", width = 6, height = 5)
+distbetweencentroidsbyfield_fullN
+dev.off()
 
 
 
@@ -2473,7 +2103,91 @@ grid.arrange(g11, g22 , ncol = 1, heights = c(1, 1))
 
 
 
-#### DISPERSION BETWEEN E001 and E002 by FIELD####
+###DISPERSION BTWN E001 and E002 by nutrients TREATMENTS###
+```{r - Calculate the distance BETWEEN E001 and E002 centroids all ntrt treatments (log data)}
+
+
+bd_allbothfull_df2<-bd_allbothfull_df%>%mutate(ntrt2 = ntrt)
+
+
+##pulling out the group centroids by year####
+
+centroiddf_full<-as.data.frame(bd_allbothfull[["centroids"]])
+
+centroiddf_full_2<-centroiddf_full[,1:2]
+
+centroiddf_full_2<- tibble::rownames_to_column(centroiddf_full_2, "expntrtyear")
+
+centroiddf_full_2<-separate(data = centroiddf_full_2, col = expntrtyear, into = c("exp", "ntrt", "year"))
+
+centroiddf_full_3<-centroiddf_full_2%>% mutate(ntrtyear= paste(ntrt,year, sep = '_')) 
+
+
+
+###grand mean centroid E001 and E002 for all treatments each year###
+
+grandcentroid_full_e001e002<-centroiddf_full_3%>% group_by(ntrt, year) %>% dplyr::summarise(PcoA1centroid=mean(PCoA1, na.rm=TRUE),PcoA2centroid=mean(PCoA2, na.rm=TRUE)) %>% mutate(ntrtyear= paste(ntrt,year, sep = '_'))
+
+
+### merge the treatments means with the grand mean centroid for each year##
+
+centroiddf_full_e001e002<-merge(data.frame(centroiddf_full_3), data.frame(grandcentroid_full_e001e002), by = "ntrtyear", all = TRUE)
+
+
+
+###calculate the distance from each centroid to grand centroid using pythagoreum theorem###
+
+centroiddf_full_4_e001e002<-centroiddf_full_e001e002 %>% mutate(distgrandcent=sqrt((PcoA1centroid- PCoA1)^2+(PcoA2centroid-PCoA2)^2))
+
+
+###average distance of each group to its grand mean##
+
+centroiddists_full_e001e002<-centroiddf_full_4_e001e002%>% group_by(ntrtyear) %>% dplyr::summarise(meandist=mean(distgrandcent, na.rm=TRUE))%>%separate(col = ntrtyear, into = c("ntrt", "year"))
+
+
+```
+
+
+
+```{r - recreate supplemental figure, distance BTWN E001 and E002 centroids (logdata)}
+
+
+head(centroiddists_full_e001e002)
+
+centroiddists_e001e002<-as.data.frame(centroiddists_full_e001e002)
+
+
+centroiddists_e001e002_2<- centroiddists_e001e002 %>% mutate(year2=as.numeric(year)-1981)%>% mutate(ntrt2=ntrt)
+
+
+
+centroiddists_e001e002_2$ntrt2  <- mapvalues(centroiddists_e001e002_2$ntrt2, from=c("9", "1", "2", "3", "4","5","6", "7", "8"),
+                               to=c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9.5 N + μ", "17 N + μ", "27.2 N + μ"))
+
+centroiddists_e001e002_2$ntrt2 <- factor(centroiddists_e001e002_2$ntrt2, levels = c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9.5 N + μ", "17 N + μ", "27.2 N + μ"))
+
+
+
+
+distbetweencentroidse001e002<-ggplot(data=centroiddists_e001e002_2,aes(x=year2 ,y=meandist, group=ntrt2, color=ntrt2)) +
+    geom_point() +
+    ylab(expression('Average distance between \n disturbance group centroids'))+
+    xlab("Time since experiment (years)")+
+    geom_smooth(method="loess", size = 0.5, se=F, fullrange=T)+  mytheme+
+    theme(legend.position="right")+
+    theme(legend.title = element_blank()) + 
+    theme(strip.text = element_text(size=12, face="bold"))+
+     theme(strip.background = element_blank()) + scale_colour_manual(values = c("dark gray","#f9cb35", "#f98e09", "#e45a31", "#bc3754", "#8a226a", "#57106e", "#210c4a", "#000004"))+theme(plot.margin = margin(10, 10, 10, 30))
+
+
+pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/Dist recovery MS/Figures_overleaf/distbetweencentroidse001e002.pdf", width = 5, height = 3)
+distbetweencentroidse001e002
+dev.off()
+
+```
+
+
+#### DISPERSION BETWEEN E001 and E002 by FIELD all ntrts together####
 ```{r - dispersion E001 and E002 by field (logdata)}
 
 ##START W/ DATA SET subsetted to 2004 to compare E001 and E002 ##
@@ -2562,34 +2276,39 @@ mergedcentroids_dist<-mergedcentroids %>% mutate(distcentroids=sqrt((PCoA1.y - P
 ```
 
 
-
 #### PLOT DISPERSION BETWEEN E001 and E002 by FIELD####
-```{r - plot dispersion E001 and E002 }
+```{r - plot dispersion E001 and E002 by field }
 
 mergedcentroids_dist_2 <-mergedcentroids_dist%>% mutate(year2=as.numeric(year.x)-1981)
 
+## for plotting##
 
+mergedcentroids_dist_2$field.x<-mapvalues(mergedcentroids_dist_2$field.x, from=c("A", "B", "C"), to=c("Field A", "Field B", "Field C"))
 
 distE001E002BYFIELD<- ggplot(mergedcentroids_dist_2, aes(x=year2, y=distcentroids)) +
     geom_point()  +
-   geom_smooth(method="loess", se=FALSE) +
+   geom_smooth(method="nls", formula=y~SSasymp(x, Asym, R0, lrc), colour = "black", size = 0.5, se=F, fullrange=T)+
    facet_wrap(~field.x)+ 
-    ylab(expression('Average distance between E001 and E002 group centroid'))+
+    ylab(expression('Average distance between \n disturbace group centroids'))+
     xlab("Time since experiment")+
     mytheme+
     theme(legend.position="right")+
     theme(legend.title = element_blank()) + 
     theme(strip.text = element_text(size=12, face="bold"))+
-     theme(strip.background = element_blank())
+     theme(strip.background = element_blank())+
+    theme(plot.margin = margin(10, 10, 10, 30))
 
+
+pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/Dist recovery MS/Figures_overleaf/distE001E002BYFIELD.pdf", width = 5, height = 3)
+distE001E002BYFIELD
+dev.off()
 
 
 ```
 
 
 
-### WANT TO INCLUDE FIELD D FOR THESE METRICS....###
-
+##########GOT UP TO HERE ON 11/22/22 ##### STILL NEED TO UPLOAD NEW SINUOSITY, SPEED, AND OTHER SUPPLEMENTAL FIGURES
 
 ###OLD SINOUSITY METRIC####
 ```{r - calculate sinuosity of trajectories full N gradient (log data)}
@@ -2659,8 +2378,6 @@ sinuosityavg_ABCD<-trajectoriesplotABCD_df_2%>% group_by(field) %>% dplyr::summa
 
 
 ```
-
-
 
 ```{r - calculate sinuosity two decades full N gradient }
 
