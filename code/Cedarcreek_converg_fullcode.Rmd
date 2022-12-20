@@ -669,150 +669,8 @@ da_fieldD_wide[is.na(da_fieldD_wide)] <- 0
 ```
 
 
-### figure for presentation 12/5/2022####
-
-
-##subset to selected nutrient treatments below 9.5 g N##
-
-
-
-```{r - make figure pcoa for research}
-
-
-exp12subset<-subset(da.wide5,year<2005)
-
-exp12subset_1<-subset(exp12subset,ntrt==9|ntrt==1|ntrt==2|ntrt==4|ntrt==6)
-
-
-##make nutrient and years factors#
-
-exp12subset_1$ntrt<-as.factor(exp12subset_1$ntrt)
-exp12subset_1$year<-as.factor(exp12subset_1$year)
-
-
-##arrange the dataframe so that that columns and rows are in right order##
-exp12subsetsorted<-exp12subset_1%>%arrange(year)%>%arrange(plot)%>%arrange(field)%>%arrange(exp)
-
-
-##just the plot data##
-plot<-exp12subsetsorted%>% dplyr::select('field':'ntrt2')
-
-##just the veg data##
-
-veg<-exp12subsetsorted%>% dplyr::select(`mass.above.ACER NEGUNDO`:`mass.above.VIOLA SP.`)
-
-
-
-###log transformation####
-
-vegmatrix<-as.matrix(veg)
-
-logveg<-log(1+vegmatrix)
-
-
-## Bray curtis dissimiliarty matrix##
-distE1andE2<-vegdist(logveg, method="bray")
-BCdistall<-as.matrix(distE1andE2)  ##into a matrix#
-BCdistalldf<-as.data.frame(BCdistall)  #into a dataframe#
-
-BCdistalldf2<-cbind(plot,BCdistalldf) #merge plot data w/ dissim matrix##
-
-##BCdistalldf2 has the plot info and the BC dissimilarity matrix for the entire experiment (E001 and E002, all three fields combined, with a subsetted selection of the ntrt treatments)
-
-###PcOA for both E011 and E002 together####
-
-PCOA_allfieldE12<- pcoa(distE1andE2)  ## takes a while##
-
-#PCOA_allfieldE12_cmd <- cmdscale(distE1andE2, eig=TRUE, add=FALSE)  ## Another way of doing the pcoa that gives same results#
-
-
-## extracting the axis scores for each exp##
-
-PCOAaxesboth<- PCOA_allfieldE12$vectors[,c(1,2)]
-
-
-##merge the axis scores with the plot data ###
-
-PCOAandplotsboth<-cbind(plot,PCOAaxesboth)
-
-##PCOAandplotsboth N has the plot info and the PCOA scores for the entire experiment (E001 and E002, all three fields combined, with a subset of the ntrt treatments)
-
-
-###calculate averages of plots (PCOA and plots both)
-
-PCOAandplotsavg<-PCOAandplotsboth %>% group_by(exp,year,disk,ntrt) %>% dplyr::summarise(meanAxis1=mean(Axis.1, na.rm=TRUE),sdAxis1=sd(Axis.1, na.rm=TRUE),seAxis1=sd(Axis.1, na.rm=TRUE)/sqrt(n()),meanAxis2=mean(Axis.2, na.rm=TRUE),sdAxis2=sd(Axis.2, na.rm=TRUE),seAxis2=sd(Axis.2, na.rm=TRUE)/sqrt(n()), n=n())
-
-
-### subset to the end of time series###
-
-PCOAandplotsboth$year<-as.numeric(as.character(PCOAandplotsboth$year))
-
-PCOAandplots2004<-subset(PCOAandplotsboth, year==2004)
-
-PCOAandplotsavg2004<-subset(PCOAandplotsavg, year==2004)
-
-
-
-PCOAandplots2004$ntrt2=PCOAandplots2004$ntrt
-PCOAandplotsavg2004$ntrt2=PCOAandplotsavg2004$ntrt
-
-
-
-
-
-PCOAandplots2004$ntrt2  <- mapvalues(PCOAandplots2004$ntrt2, from=c("9", "1", "2", "4", "6"),
-                               to=c("None", "0 N + μ", "1 N + μ", "3.4 N + μ","9 N + μ"))
-
-PCOAandplotsavg2004$ntrt2  <- mapvalues(PCOAandplotsavg2004$ntrt2, from=c("9", "1", "2", "4", "6"),
-                               to=c("None", "0 N + μ", "1 N + μ", "3.4 N + μ","9 N + μ"))
-
-PCOAandplots2004$ntrt2  <- factor(PCOAandplots2004$ntrt2 , levels = c("None", "0 N + μ", "1 N + μ", "3.4 N + μ","9 N + μ"))
-
-PCOAandplotsavg2004$ntrt2  <- factor(PCOAandplotsavg2004$ntrt2 , levels = c("None", "0 N + μ", "1 N + μ", "3.4 N + μ","9 N + μ"))
-
-
-PCOAandplots2004$disk<-plyr::mapvalues(PCOAandplots2004$disk, from=c("0", "1"), to=c("Intact in 1982", "Disturbed in 1982"))
-
-PCOAandplotsavg2004$disk<-plyr::mapvalues(PCOAandplotsavg2004$disk, from=c("0", "1"), to=c("Intact in 1982", "Disturbed in 1982"))
-
-
-
-
-
-mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title=element_text(size=12))+theme(plot.title=element_text(size=12) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))
-
-
-
-
-PcOA2004<-ggplot(data=PCOAandplotsavg2004, aes(x=meanAxis1  ,y=meanAxis2 , color=ntrt2)) +
-  geom_hline(yintercept = 0)+geom_vline(xintercept = 0)+
-  geom_point(data=PCOAandplots2004, aes(x=Axis.1, y= Axis.2, color= ntrt2), size=4, alpha=0.2) +
-  geom_errorbar(aes(ymin=meanAxis2-seAxis2, ymax=meanAxis2+seAxis2), color="dark gray", size=0.25) +
-    geom_errorbarh(aes(xmin=meanAxis1-seAxis1, xmax=meanAxis1+seAxis1), color="dark gray", size=0.25)+
-  geom_point(size=6)+
-      ylab("PCoA 2")+
-    xlab("PCoA 1")+
-    facet_grid(~disk) + 
-    scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
-    mytheme+
-    theme(legend.position="right")+
-    scale_shape_manual(values = c(21, 22, 24))+
-      theme(strip.background = element_blank())+theme(strip.text.x = element_text(size = 14))
-
-    
-
-pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/PCOA2004.pdf", width = 8, height = 4)
-PcOA2004
-dev.off()
-
-
-
-```
-
-
-
 ###PERMANOVA AND PCOA FULL N GRADIENT###
-##this chuck takes a long time to run.....###
+##this chunk takes a long time to run.....###
 
 ```{r - Conduct a PCoA using all the veg data across years  FULL N GRADIENT (log)}
 
@@ -1316,13 +1174,12 @@ PCOAandplots198219922004_fullN<-subset(PCOAandplotsavg2_fullN, year==1982|year==
 
 PCOAandplots198219922004_fullN<-PCOAandplots198219922004_fullN %>% mutate(abclabel=exp)%>% mutate(ntrt2=ntrt) %>%  mutate(expntrt= paste(exp, ntrt, sep = '_'))
 
-levels(PCOAandplots198219922004_fullN$abclabel) <- c( "(a) ", "(b) ")
 
 
 PCOAandplots198219922004_fullN$ntrt2  <- mapvalues(PCOAandplots198219922004_fullN$ntrt2, from=c("9", "1", "2", "3", "4","5","6", "7", "8"),
-                               to=c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
+                               to=c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9.5 N + μ", "17 N + μ", "27.2 N + μ"))
 
-PCOAandplots198219922004_fullN$ntrt2 <- factor(PCOAandplots198219922004_fullN$ntrt2, levels = c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
+PCOAandplots198219922004_fullN$ntrt2 <- factor(PCOAandplots198219922004_fullN$ntrt2, levels = c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9.5 N + μ", "17 N + μ", "27.2 N + μ"))
 
 
 
@@ -1340,9 +1197,9 @@ PcoAplayingfirst2_fullN<-PcoAplayingfirst2_fullN %>% arrange(year)%>% arrange(ex
 
 
 PcoAplayingfirst2_fullN$ntrt2  <- mapvalues(PcoAplayingfirst2_fullN$ntrt2, from=c("9", "1", "2", "3", "4","5","6", "7", "8"),
-                               to=c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
+                               to=c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9.5 N + μ", "17 N + μ", "27.2 N + μ"))
 
-PcoAplayingfirst2_fullN$ntrt2 <- factor(PcoAplayingfirst2_fullN$ntrt2, levels = c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
+PcoAplayingfirst2_fullN$ntrt2 <- factor(PcoAplayingfirst2_fullN$ntrt2, levels = c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9.5 N + μ", "17 N + μ", "27.2 N + μ"))
 
 
 
@@ -1354,7 +1211,7 @@ wide_PcoAplaying1$`1992`<-as.numeric(as.character(wide_PcoAplaying1$`1992`))
 wide_PcoAplaying1$`2004`<-as.numeric(as.character(wide_PcoAplaying1$`2004`))
 
 
-PCOAandplotslabels_fullN<-subset(PcoAplayingfirst2_fullN, ntrt==4)
+PCOAandplotslabels_fullN<-subset(PcoAplayingfirst2_fullN, ntrt==8)
 PCOAandplotslabels_fullN<-PCOAandplotslabels_fullN%>%  mutate(expntrt= paste(exp, ntrt, sep = '_'))%>%  mutate(yearlabel= year)
 
 
@@ -1372,8 +1229,7 @@ ann_textdisk2 <- data.frame(meanAxis1 = c(0.03, 0.03), meanAxis2 =c(0.27,0.27),e
 
 
 ####
-mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title=element_text(size=12))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))+ theme(panel.grid.major = element_line(colour = "gray 85"))+ theme(panel.grid.minor = element_line(colour = "gray 95"))
-
+mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title=element_text(size=12))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))
 
 PcOAdecade_fullN<-ggplot(data=PcoAplayingfirst2_fullN, aes(x=meanAxis1  , y=meanAxis2 , color=ntrt2)) +
   geom_hline(yintercept = 0)+geom_vline(xintercept = 0)+
@@ -1385,17 +1241,17 @@ PcOAdecade_fullN<-ggplot(data=PcoAplayingfirst2_fullN, aes(x=meanAxis1  , y=mean
     geom_path(size=0.75, arrow = arrow(type = "open", angle = 30, length = unit(0.1, "inches")))+
       geom_segment(data=wide_PcoAplaying1, aes(x=`1992`  , y=`1992`, xend =`2004`, yend = `2004`, color=ntrt2), arrow=arrow(length=unit(0.0, "cm"))) +
     geom_path(size=0.75, arrow = arrow(type = "open", angle = 30, length = unit(0.1, "inches")))+
-          geom_text(data=PCOAandplotslabels, aes(label=yearlabel),position = position_nudge(y = 0.001, x=0.02), color="black", size=3.0)+
+          
     #ylab("PCoA 2")+
     ylab(expression(atop("", paste("PCoA 2"))))+
     xlab("PCoA 1")+
     facet_grid(~disk) + 
-    xlim(-0.28,0.55)+
-    ylim(-0.5,0.18)+
+    #xlim(-0.330,0.500)+
+    #ylim(-0.500,0.180)+
       mytheme+
     scale_shape_manual(values = c(21, 22, 24))+
       theme(strip.background = element_blank())+
-      geom_text(aes(x = -0.25, y = 0.14, label = abclabel, group =     abclabel),size = 4, color= "black", check_overlap = T)+theme(strip.text = element_blank())
+      geom_text(aes(x = -0.31, y = 0.18, label = abclabel, group =     abclabel),size = 4, color= "black", check_overlap = T)+theme(strip.text = element_blank())+scale_colour_manual(values = c("dark gray","#f9cb35", "#f98e09", "#e45a31", "#bc3754", "#8a226a", "#57106e", "#210c4a", "#000004"))+theme(legend.position="none")+scale_y_continuous(limits=c(-0.5, 0.18), labels = scales::number_format(accuracy = 0.05))+scale_x_continuous(limits=c(-0.33, 0.5), labels = scales::number_format(accuracy = 0.05))+geom_text(data=PCOAandplotslabels_fullN, aes(label=yearlabel),position = position_nudge(y = -0.04, x=0.05), color="#000004", size=3.0)
 
 
 ```
@@ -2450,289 +2306,6 @@ dev.off()
 
 
 
-##########GOT UP TO HERE ON 11/22/22 ##### STILL NEED TO UPLOAD NEW SINUOSITY, SPEED, AND OTHER SUPPLEMENTAL FIGURES
-
-###OLD SINOUSITY METRIC####
-```{r - calculate sinuosity of trajectories full N gradient (log data)}
-
-#https://cran.rstudio.com/web/packages/trajr/vignettes/trajr-vignette.html#
-
-
-head(PCOAandplotsboth_fullN)
-
-
-##make each experiment, nutrient, plot, its own combo###
-PCOAandplotsboth_full2<-PCOAandplotsboth_fullN%>% mutate(expntrtplot= paste(exp, ntrt, plot, sep = '_'))
-
-PCOAandplotsboth_full3<-PCOAandplotsboth_full2 %>%  ungroup() %>% dplyr::select(expntrtplot, Axis.1, Axis.2, year, -exp, -disk)
-
-
-###calculate sinuoisty for each plot using the traj from coords function##
-trajectoriesplot_full<-lapply(X = split.data.frame(x = PCOAandplotsboth_full3, f=PCOAandplotsboth_full3$expntrtplot),function(t){
-  PCOAscores<-t %>%   ungroup() %>% dplyr::select(Axis.1, Axis.2, year)
-  trajs <- TrajFromCoords(PCOAscores)
-  sinuosity<-TrajSinuosity2(trajs)
-  return(data.frame(sinuosity))
-  }
-  )
-
-##dataframe of results##
-trajectoriesplotdf_full<-plyr::ldply(trajectoriesplot_full, data.frame)
-
-
-trajectoriesplotdf_full2<-separate(data = trajectoriesplotdf_full, col = .id, into = c("exp", "ntrt", "plot"))
-
-##mean sinuoisty for each exp_ntrt###
-
-sinuosityavg_full<-trajectoriesplotdf_full2%>% group_by(exp, ntrt) %>% dplyr::summarise(sinuosityavg=mean(sinuosity, na.rm=TRUE),sdsinuosiy=sd(sinuosity, na.rm=TRUE),sesinuosity=sd(sinuosity, na.rm=TRUE)/sqrt(n()), uprconfint=sinuosityavg+(1.96*sesinuosity),lwrconfint=sinuosityavg-(1.96*sesinuosity), n=n())
-
-
-```
-
-
-###OLD SINOUSITY METRIC####
-```{r - calculate sinuosity field ABCD control plots (log data)}
-
-
-head(PCOAABCDandplots)
-
-
-PCOAABCDandplots2<-PCOAABCDandplots %>%  mutate(fieldplot= paste(field, plot, sep = '_'))
-
-###calculate sinuoisty for each plot using the traj from coords function##
-trajectoriesABCDcontrol<-lapply(X = split.data.frame(x = PCOAABCDandplots2, f=PCOAABCDandplots2$fieldplot),function(t){
-  PCOAscores<-t %>%   ungroup() %>% dplyr::select(Axis.1, Axis.2, year)
-  trajs <- TrajFromCoords(PCOAscores)
-  sinuosity<-TrajSinuosity2(trajs)
-  return(data.frame(sinuosity))
-  }
-  )
-
-##dataframe of results##
-trajectoriesABCD_df<-plyr::ldply(trajectoriesABCDcontrol, data.frame)
-
-
-trajectoriesplotABCD_df_2<-separate(data = trajectoriesABCD_df, col = .id, into = c("field", "plot"))
-
-##mean sinuoisty for each exp_ntrt###
-
-sinuosityavg_ABCD<-trajectoriesplotABCD_df_2%>% group_by(field) %>% dplyr::summarise(sinuosityavg=mean(sinuosity, na.rm=TRUE),sdsinuosiy=sd(sinuosity, na.rm=TRUE),sesinuosity=sd(sinuosity, na.rm=TRUE)/sqrt(n()), uprconfint=sinuosityavg+(1.96*sesinuosity),lwrconfint=sinuosityavg-(1.96*sesinuosity), n=n())
-
-
-```
-
-```{r - calculate sinuosity two decades full N gradient }
-
-
-head(PCOAandplotsboth_fullN)
-
-###split by decade##
-
-PCOAandplotsfirstdecade_full<-subset(PCOAandplotsboth_fullN, as.numeric(as.character(year))<=1992)
-
-PCOAandplotsseconddecade_full<-subset(PCOAandplotsboth_fullN, as.numeric(as.character(year))>1992)
-
-
-##make each experiment, nutrient, plot, its own combo###
-PCOAandplotsfirstdecade2_full<-PCOAandplotsfirstdecade_full%>% mutate(expntrtplot= paste(exp, ntrt, plot, sep = '_'))
-
-PCOAandplotsfirstdecade3_full<-PCOAandplotsfirstdecade2_full %>%  ungroup() %>% select(expntrtplot, Axis.1, Axis.2, year, -exp, -disk)
-
-
-PCOAandplotsseconddecade2_full<-PCOAandplotsseconddecade_full%>% mutate(expntrtplot= paste(exp, ntrt, plot, sep = '_'))
-
-PCOAandplotsseconddecade3_full<-PCOAandplotsseconddecade2_full %>%  ungroup() %>% select(expntrtplot, Axis.1, Axis.2, year, -exp, -disk)
-
-###calculate sinuoisty for each plot###
-
-###
-trajectoriesplotfirst_full<-lapply(X = split.data.frame(x = PCOAandplotsfirstdecade3_full, f=PCOAandplotsfirstdecade3_full$expntrtplot),function(t){
-  PCOAscores<-t %>%   ungroup() %>% select(Axis.1, Axis.2, year)
-  trajs <- TrajFromCoords(PCOAscores)
-  sinuosity<-TrajSinuosity2(trajs)
-  return(data.frame(sinuosity))
-  }
-  )
-
-
-trajectoriesplotsecond_full<-lapply(X = split.data.frame(x = PCOAandplotsseconddecade3_full, f=PCOAandplotsseconddecade3_full$expntrtplot),function(t){
-  PCOAscores<-t %>%   ungroup() %>% select(Axis.1, Axis.2, year)
-  trajs <- TrajFromCoords(PCOAscores)
-  sinuosity<-TrajSinuosity2(trajs)
-  return(data.frame(sinuosity))
-  }
-  )
-
-
-
-##dataframe of results##
-trajectoriesplotdffirst_full<-plyr::ldply(trajectoriesplotfirst_full, data.frame)
-trajectoriesplotdffirst_2_full<-separate(data = trajectoriesplotdffirst_full, col = .id, into = c("exp", "ntrt", "plot"))
-
-trajectoriesplotdfsecond_full<-plyr::ldply(trajectoriesplotsecond_full, data.frame)
-
-trajectoriesplotdfsecond_2_full<-separate(data = trajectoriesplotdfsecond_full, col = .id, into = c("exp", "ntrt", "plot"))
-
-### add column for decades###
-
-trajectoriesplotdffirst_2_full<-trajectoriesplotdffirst_2_full %>% mutate(decade="1982-1992")
-
-trajectoriesplotdfsecond_2_full<-trajectoriesplotdfsecond_2_full %>% mutate(decade="1993-2004")
-
-##combine them together##
-trajectoriesboth_full<-rbind(trajectoriesplotdffirst_2_full, trajectoriesplotdfsecond_2_full)
-
-##mean sinuoisty for each exp_ntrt###
-
-sinuosityavgbydecade_full<-trajectoriesboth_full%>% group_by(exp, ntrt, decade) %>% dplyr::summarise(sinuosityavg=mean(sinuosity, na.rm=TRUE),sdsinuosiy=sd(sinuosity, na.rm=TRUE),sesinuosity=sd(sinuosity, na.rm=TRUE)/sqrt(n()), n=n())
-
-```
-
-
-```{r - recreate FIGURE 4ab Sinuosity full N gradient}
-
-##for plotting###
-sinuosityavg2<-sinuosityavg_full %>% mutate(ntrt2=ntrt)
-
-
-sinuosityavg2$ntrt2  <- mapvalues(sinuosityavg2$ntrt2, from=c("9", "1", "2", "3", "4","5","6", "7", "8"),
-                               to=c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
-
-sinuosityavg2$ntrt2 <- factor(sinuosityavg2$ntrt2, levels = c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
-
-
-sinuosityavg2$exp<-mapvalues(sinuosityavg2$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-sinuosityavg2$exp<- factor(sinuosityavg2$exp, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-
-
-sinuosityavg2<-sinuosityavg2 %>% mutate(abclabel=exp)
-levels(sinuosityavg2$abclabel) <- c( "(a) ", "(b) ")
-
-
-mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title.x=element_text(size=12))+theme(axis.title.y=element_text(size=10))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))+ theme(panel.grid.major = element_line(colour = "gray 85"))+ theme(panel.grid.minor = element_line(colour = "gray 95"))
-
-
-sinuosityplot_fullN<- ggplot(data=sinuosityavg2, aes(x=ntrt2, y=sinuosityavg, group=ntrt2, color=ntrt2)) +
-    geom_point(size=2) +
-    geom_errorbar(aes(ymin=lwrconfint, ymax=uprconfint), size=1)+
-    facet_grid(~exp)+ 
-    xlab("")+
-    ylab(expression(atop("Average sinuosity", paste("(1982 - 2004)"))))+
-    mytheme+
-    theme(legend.position="none")+
-    theme(legend.title = element_blank()) + 
-  theme(strip.text.x = element_text(size = 14, colour = "black"))+
-   #scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
-   theme(axis.text.x = element_text(angle = 25,vjust = 0.5))+
-    theme(strip.text = element_text(face="bold"))+
-     theme(strip.background = element_blank())+
-   theme(strip.text = element_text(size=12, face="bold"))+
-     theme(strip.background = element_blank())+
-      geom_text(aes(x = 0.8, y = 8.2, label = abclabel, group =     abclabel),size = 4, color= "black", check_overlap = T)+ scale_y_continuous(labels = scales::number_format(accuracy = 0.1))+ylim(3.8, 8.3)
-
-
-
-
-sinuosityplot_ABCD<- ggplot(data=sinuosityavg_ABCD, aes(x=field, y=sinuosityavg, group=field)) +
-    geom_point(size=2) +
-    geom_errorbar(aes(ymin=lwrconfint, ymax=uprconfint), size=1)+
-    xlab("")+
-    ylab(expression(atop("Average sinuosity", paste("(1982 - 2004)"))))+
-    mytheme+
-    theme(legend.position="none")+
-    theme(legend.title = element_blank()) + 
-  theme(strip.text.x = element_text(size = 14, colour = "black"))+
-   #scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
-   theme(axis.text.x = element_text(angle = 25,vjust = 0.5))+
-    theme(strip.text = element_text(face="bold"))+
-     theme(strip.background = element_blank())+
-   theme(strip.text = element_text(size=12, face="bold"))+
-     theme(strip.background = element_blank())+
-      scale_y_continuous(labels = scales::number_format(accuracy = 0.1))+ylim(3.8, 10)
-
-
-
-
-
-```
-
-
-```{r - recreate SUP FIG 4 Sinuosity 2 decades full N gradient}
-
-
-
-##for plotting###
-sinuosityavgbydecade2<-sinuosityavgbydecade_full %>% mutate(ntrt2=ntrt)
-
-## plot specifications
-
-sinuosityavgbydecade2$ntrt2  <- mapvalues(sinuosityavgbydecade2$ntrt2, from=c("9", "1", "2", "3", "4","5","6", "7", "8"),
-                               to=c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
-
-sinuosityavgbydecade2$ntrt2 <- factor(sinuosityavgbydecade2$ntrt2, levels = c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
-
-
-sinuosityavgbydecade2$exp<-mapvalues(sinuosityavgbydecade2$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-sinuosityavgbydecade2$exp<- factor(sinuosityavgbydecade2$exp, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-
-
-mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title=element_text(size=12))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))
-
-
-mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title.x=element_text(size=12))+theme(axis.title.y=element_text(size=10))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))+ theme(panel.grid.major = element_line(colour = "gray 85"))+ theme(panel.grid.minor = element_line(colour = "gray 95"))
-
-
-sinuosityplotbydecade_fullN<- ggplot(data=sinuosityavgbydecade2, aes(x=ntrt2, y=sinuosityavg, group=ntrt2, color=ntrt2)) +
-    geom_point(size=2) +
-    geom_errorbar(aes(ymin=sinuosityavg-sesinuosity, ymax=sinuosityavg+sesinuosity), size=1)+
-    facet_grid(decade~exp)+ 
-    xlab("")+
-   ylab(expression('Average sinuosity'))+
-    mytheme+
-    theme(legend.position="none")+
-    theme(legend.title = element_blank()) + 
-  theme(strip.text.x = element_text(size = 14, colour = "black"))+
-   #scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
-   theme(axis.text.x = element_text(angle = 25,vjust = 0.5))+
-    theme(strip.text = element_text(face="bold"))+
-     theme(strip.background = element_blank())+
-   theme(strip.text = element_text(size=12, face="bold"))+
-     theme(strip.background = element_blank())
-
-jpeg("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/Dist recovery MS/Figures_overleaf/logfigures/sinuosity2decades.jpeg", width = 6, height = 6, units = 'in', res = 600)
-sinuosityplotbydecade
-dev.off()
-
-pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/Dist recovery MS/Figures_overleaf/logfigures/sinuosity2decades.pdf", width = 6, height = 6)
-sinuosityplotbydecade
-dev.off()
-
-
-
-
-```
-
-
-```{r - recreate FIG 4 abcd}
-
-g222 <- ggplotGrob(PcOAdecade)
-g111 <- ggplotGrob(sinuosityplot)
-
-grid.arrange(g111, g222 , ncol = 1, heights = c(1, 1))
-
-
-
-```
-
-
-###CODE CHECKING GOT UP TO HERE on 11/3#######
-
-
-
 ###SINOUSITY USING TRAJECTORY DIRECTIONALITY ####
 ```{r - calculate traj directionality (log data)}
 
@@ -2759,28 +2332,6 @@ trajdirectdf<-cbind(plotE001E002_2, trajdirection)
 trajdiravg<-trajdirectdf%>% group_by(exp, ntrt) %>% dplyr::summarise(trajdiravg=mean(trajdirection, na.rm=TRUE),sdtrajdir=sd(trajdirection, na.rm=TRUE),setrajdir=sd(trajdirection, na.rm=TRUE)/sqrt(n()), uprconfint=trajdiravg+(1.96*setrajdir),lwrconfint=trajdiravg-(1.96*setrajdir), n=n())
 
 
-##### NOW do for fields ABCD controls###
-
-head(BCdistABCDdf2)
-
-##make each field,  plot, its own combo###
-plotABCD<-BCdistABCDdf2 %>% select(field, exp, plot, year)%>% mutate(fieldplot= paste(field, plot, sep = '_'))
-
-plotABCD_2<-distinct(plotABCD, fieldplot, .keep_all=TRUE)
-
-
-trajdirectionABCD<-trajectoryDirectionality(BCdistABCD, plotABCD$fieldplot, plotABCD$year)
-
-
-trajdirectABCDdf<-cbind(plotABCD_2, trajdirectionABCD)
-
-### mean directionality of fields...##
-
-
-trajdirABCDavg<-trajdirectABCDdf%>% group_by(field) %>% dplyr::summarise(trajdiravg=mean(trajdirectionABCD, na.rm=TRUE),sdtrajdir=sd(trajdirectionABCD, na.rm=TRUE),setrajdir=sd(trajdirectionABCD, na.rm=TRUE)/sqrt(n()), uprconfint=trajdiravg+(1.96*setrajdir),lwrconfint=trajdiravg-(1.96*setrajdir), n=n())
-
-
-
 ```
 
 
@@ -2792,18 +2343,19 @@ trajdiravg2<-trajdiravg %>% mutate(ntrt2=ntrt)
 
 
 trajdiravg2$ntrt2  <- mapvalues(trajdiravg2$ntrt2, from=c("0", "9", "1", "2", "3", "4","5","6", "7", "8"),
-                               to=c("Never", "None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
+                               to=c("Never", "None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9.5 N + μ", "17 N + μ", "27.2 N + μ"))
 
-trajdiravg2$ntrt2 <- factor(trajdiravg2$ntrt2, levels = c("Never", "None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9 N + μ", "17 N + μ", "27.2 N + μ"))
+trajdiravg2$ntrt2 <- factor(trajdiravg2$ntrt2, levels = c("Never", "None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9.5 N + μ", "17 N + μ", "27.2 N + μ"))
 
 
-trajdiravg2$exp<-mapvalues(trajdiravg2$exp, from=c("0", "1", "2"), to=c("Remnant", "Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+trajdiravg2$exp<-mapvalues(trajdiravg2$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
 
 trajdiravg2$exp<- factor(trajdiravg2$exp, levels = c("Remnant", "Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
 
+trajdiravg2<-trajdiravg2 %>% mutate(abclabel=if_else(exp=="Intact in 1982 (E001)", "(a)", "(b)"))
 
 
-mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title.x=element_text(size=12))+theme(axis.title.y=element_text(size=10))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))+ theme(panel.grid.major = element_line(colour = "gray 85"))+ theme(panel.grid.minor = element_line(colour = "gray 95"))
+mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=8, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title.x=element_text(size=12))+theme(axis.title.y=element_text(size=10))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))
 
 
 directionalityplot<- ggplot(data=trajdiravg2, aes(x=ntrt2, y=trajdiravg, group=ntrt2, color=ntrt2)) +
@@ -2820,28 +2372,181 @@ directionalityplot<- ggplot(data=trajdiravg2, aes(x=ntrt2, y=trajdiravg, group=n
     theme(strip.text = element_text(face="bold"))+
      theme(strip.background = element_blank())+
    theme(strip.text = element_text(size=12, face="bold"))+
-     theme(strip.background = element_blank())
+     theme(strip.background = element_blank())+scale_colour_manual(values = c("dark gray","#f9cb35", "#f98e09", "#e45a31", "#bc3754", "#8a226a", "#57106e", "#210c4a", "#000004"))+scale_y_continuous(labels = scales::number_format(accuracy = 0.005))+geom_text(aes(x = 0.8, y = 0.49, label = abclabel, group =     abclabel),size = 4, color= "black", check_overlap = T)
 
 
-##directionality of control plots###
 
-head(trajdirABCDavg)
+```
 
 
-directionalityplotABCD<- ggplot(data=trajdirABCDavg, aes(x=field, y=trajdiravg, group=field)) +
+## plot trajectory directionality###
+```{r - recreate FIG 4 abcd}
+
+g222 <- ggplotGrob(PcOAdecade_fullN)
+g111 <- ggplotGrob(directionalityplot)
+
+grid::grid.newpage()
+grid::grid.draw(rbind(g111, g222))
+
+pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/Dist recovery MS/Figures_overleaf/angledirectionality4panel.pdf", width = 7, height = 7)
+grid::grid.draw(rbind(g111, g222))
+dev.off()
+
+
+
+
+```
+
+```{r -directionality by decade}
+
+
+##arrange the dataframe so that that columns and rows are in right order##
+exp12subsetsorted<-exp12subset%>%arrange(year)%>%arrange(plot)%>%arrange(field)%>%arrange(exp)
+
+
+exp12subsetsorted$year<-as.numeric(as.character(exp12subsetsorted$year))
+
+##just the plot data##
+plotfirstdecade<-exp12subsetsorted%>% dplyr::select('field':'ntrt2') %>% filter(year<=1992)
+
+plotseconddecade<-exp12subsetsorted%>% dplyr::select('field':'ntrt2') %>% filter(year>1992)
+
+
+##just the veg data##
+
+vegfirstdecade<-exp12subsetsorted%>% filter(year<=1992)%>% dplyr::select(`mass.above.ACER NEGUNDO`:`mass.above.VIOLA SP.`)
+
+vegseconddecade<-exp12subsetsorted%>% filter(year>1992)%>% dplyr::select(`mass.above.ACER NEGUNDO`:`mass.above.VIOLA SP.`)
+
+
+###log transformation####
+
+vegmatrixfirst<-as.matrix(vegfirstdecade)
+
+logvegfirst<-log(1+vegmatrixfirst)
+
+
+vegmatrixsecond<-as.matrix(vegseconddecade)
+
+logvegsecond<-log(1+vegmatrixsecond)
+
+
+## Bray curtis dissimiliarty matrix for each decade##
+distE1andE2first<-vegdist(logvegfirst, method="bray")
+BCdistallfirst<-as.matrix(distE1andE2first)  ##into a matrix#
+BCdistalldffirst<-as.data.frame(BCdistallfirst)  #into a dataframe#
+
+BCdistalldffirst2<-cbind(plotfirstdecade,BCdistalldffirst) #merge plot data w/ dissim matrix##
+
+
+distE1andE2second<-vegdist(logvegsecond, method="bray")
+BCdistallsecond<-as.matrix(distE1andE2second)  ##into a matrix#
+BCdistalldfsecond<-as.data.frame(BCdistallsecond)  #into a dataframe#
+
+BCdistalldfsecond2<-cbind(plotseconddecade,BCdistalldfsecond) #merge plot data w/ dissim matrix##
+
+
+
+
+##make each field, experiment, plot, its own combo###
+plotE001E002first<-BCdistalldffirst2%>% select(field, exp, plot, subplot, year, disk, ntrt, expntrtyear)%>% mutate(fieldexpplot= paste(field, exp,plot, sep = '_'))
+
+plotE001E002first_2<-distinct(plotE001E002first, fieldexpplot, .keep_all=TRUE)
+
+plotE001E002second<-BCdistalldfsecond2%>% select(field, exp, plot, subplot, year, disk, ntrt, expntrtyear)%>% mutate(fieldexpplot= paste(field, exp,plot, sep = '_'))
+
+plotE001E002second_2<-distinct(plotE001E002second, fieldexpplot, .keep_all=TRUE)
+
+
+#### traj direction on each decade ####
+
+trajdirectionfirst<-trajectoryDirectionality(BCdistallfirst, plotE001E002first$fieldexpplot, plotE001E002first$year)
+
+trajdirectionsecond<-trajectoryDirectionality(BCdistallsecond, plotE001E002second$fieldexpplot, plotE001E002second$year)
+
+####
+
+trajdirectdffirst<-cbind(plotE001E002first_2, trajdirect=trajdirectionfirst)
+
+trajdirectdfsecond<-cbind(plotE001E002second_2, trajdirect=trajdirectionsecond)
+
+###
+
+### add column for decades###
+
+trajdirectdffirst_2<-trajdirectdffirst %>% mutate(decade="1982-1992")
+
+trajdirectdfsecond_2<-trajdirectdfsecond %>% mutate(decade="1993-2004")
+
+##combine them together##
+trajectoriesboth<-rbind(trajdirectdffirst_2, trajdirectdfsecond_2)
+
+##mean traj direction for each exp_ntrt###
+
+trajdirectavgbydecade<-trajectoriesboth%>% group_by(exp, ntrt, decade) %>% dplyr::summarise(trajdiravg=mean(trajdirect, na.rm=TRUE),sdtrajdir=sd(trajdirect, na.rm=TRUE),setrajdir=sd(trajdirect, na.rm=TRUE)/sqrt(n()), n=n())
+
+
+
+
+```
+
+
+## plot trajectory directionality BY DECADE (supplemental)###
+
+```{r -plot directionality by decade}
+
+
+trajdirectavgbydecade<-trajectoriesboth%>% group_by(exp, ntrt, decade) %>% dplyr::summarise(trajdiravg=mean(trajdirect, na.rm=TRUE),sdtrajdir=sd(trajdirect, na.rm=TRUE),setrajdir=sd(trajdirect, na.rm=TRUE)/sqrt(n()), n=n())
+
+
+
+
+##for plotting###
+trajdirectavgbydecade2<-trajdirectavgbydecade %>% mutate(ntrt2=ntrt)
+
+## plot specifications
+
+trajdirectavgbydecade2$ntrt2 <- mapvalues(trajdirectavgbydecade2$ntrt2, from=c("9", "1", "2", "3", "4","5","6", "7", "8"),
+                               to=c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9.5 N + μ", "17 N + μ", "27.2 N + μ"))
+
+trajdirectavgbydecade2$ntrt2<- factor(trajdirectavgbydecade2$ntrt2, levels = c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9.5 N + μ", "17 N + μ", "27.2 N + μ"))
+
+                                          
+
+trajdirectavgbydecade2$exp<-mapvalues(trajdirectavgbydecade2$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+trajdirectavgbydecade2$exp<- factor(trajdirectavgbydecade2$exp, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+
+
+mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=8, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title.x=element_text(size=12))+theme(axis.title.y=element_text(size=10))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))
+
+
+
+trajdirplotbydecade<- ggplot(data=trajdirectavgbydecade2, aes(x=ntrt2, y=trajdiravg, group=ntrt2, color=ntrt2)) +
     geom_point(size=2) +
-    geom_errorbar(aes(ymin=lwrconfint, ymax=uprconfint), size=1)+
+    geom_errorbar(aes(ymin=trajdiravg-setrajdir, ymax=trajdiravg+setrajdir), size=0.5)+
+    facet_grid(decade~exp)+ 
     xlab("")+
-    ylab(expression(atop("Average directionality", paste("(1982 - 2004)"))))+
+    ylab(expression('Average directionality'))+
     mytheme+
     theme(legend.position="none")+
+    theme(legend.title = element_blank()) + 
     theme(legend.title = element_blank()) + 
   theme(strip.text.x = element_text(size = 14, colour = "black"))+
      theme(axis.text.x = element_text(angle = 25,vjust = 0.5))+
     theme(strip.text = element_text(face="bold"))+
      theme(strip.background = element_blank())+
    theme(strip.text = element_text(size=12, face="bold"))+
-     theme(strip.background = element_blank())
+     theme(strip.background = element_blank())+scale_colour_manual(values = c("dark gray","#f9cb35", "#f98e09", "#e45a31", "#bc3754", "#8a226a", "#57106e", "#210c4a", "#000004"))
+
+
+
+
+
+pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/Dist recovery MS/Figures_overleaf/trajdirbydecade.pdf", width = 6, height = 6)
+trajdirplotbydecade
+dev.off()
 
 
 ```
