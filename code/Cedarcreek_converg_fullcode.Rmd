@@ -1335,18 +1335,20 @@ dev.off()
 
 ```{r - Conduct a PCoA just controls plots over time (log)}
 
-head(da_fieldD_3 ) #long form field D##
-da_fieldD_3$exp<-0
+
+
+head(da_fieldD_2 ) #long form field D##
+da_fieldD_2$exp<-0
 
 head(d3woody)  ##long form fields ABC##
 
+#######
 
-d3controls<-d3woody %>% filter(ntrt==9)%>% filter(exp==1) %>% select(field, exp, plot, year, species, mass.above)
-
+##just subset out control plots##
 d3E001E002<-d3woody %>% filter(ntrt==9) %>% select(field, exp, plot, year, species, mass.above)
 
 
-da_fieldD_3<-da_fieldD_3 %>% select(field, exp, plot, year, species, mass.above)
+da_fieldD_3<-da_fieldD_2 %>% filter(ntrt==9)%>% select(field, exp, plot, year, species, mass.above)
 
 fieldABCDE001E002<-rbind(da_fieldD_3, d3E001E002)
 
@@ -1362,7 +1364,7 @@ fieldABCD_wide_sorted<-fieldABCD_wide%>%arrange(year)%>%arrange(plot)%>%arrange(
 
 ###count of plots###
 
-##there should be 3 or 6 plots per field A, B, C to 2004, and 45 in field D ###########
+##there should be 3 or 6 plots per field A, B, C to 2004, and 5 in field D ###########
 plotcountcheck2<-fieldABCD_wide_sorted%>%group_by(exp, field, year) %>%  tally()
 
 
@@ -1378,7 +1380,7 @@ plotABCD1982<-fieldABCD_wide_sorted_1982%>% dplyr::select(field, exp, plot, year
 
 ##just the veg data##
 
-vegABCD1982<-fieldABCD_wide_sorted_1982[5:201]
+vegABCD1982<-fieldABCD_wide_sorted_1982[5:181]
 
 
 # Fill in NA's with zeros in wide data set
@@ -1404,18 +1406,26 @@ BCdistABCDdf21982<-cbind(plotABCD1982,BCdistABCDdf1982) #merge plot data w/ diss
 
 ###PcOA fields ABCD####
 
-PCOA_ABCD1982 <- pcoa(BCdistABCD1982)  ## takes a while##
+PCOA_ABCD1982 <- cmdscale(BCdistABCD1982, eig=TRUE, add=FALSE) 
 
 
 ## extracting the axis scores for each exp##
 
-PCOAaxes_ABCD1982<- PCOA_ABCD1982$vectors[,c(1,2)]
+PCOAaxes_ABCD1982<- PCOA_ABCD1982$points[,c(1,2)]
 
 
 ##merge the axis scores with the plot info...##
 
 PCOAABCDandplots1982<-cbind(plotABCD1982, PCOAaxes_ABCD1982)
 
+##rename columns##
+
+names(PCOAABCDandplots1982)[5] <- "Axis.1"
+names(PCOAABCDandplots1982)[6] <- "Axis.2"
+
+
+PCOAABCDandplots1982$exp<-as.factor(as.character(PCOAABCDandplots1982$exp))
+PCOAABCDandplots1982$field<-as.factor(PCOAABCDandplots1982$field)
 
 
 ```
@@ -1424,20 +1434,22 @@ PCOAABCDandplots1982<-cbind(plotABCD1982, PCOAaxes_ABCD1982)
 ```{r - Supp figure PCOA controls ABCD}
 
 
-PCOA_ABCD_average1982<-PCOAABCDandplots1982 %>% group_by(field,exp, year) %>% dplyr::summarise(meanAxis1=mean(Axis.1, na.rm=TRUE),sdAxis1=sd(Axis.1, na.rm=TRUE),seAxis1=sd(Axis.1, na.rm=TRUE)/sqrt(n()),meanAxis2=mean(Axis.2, na.rm=TRUE),sdAxis2=sd(Axis.2, na.rm=TRUE),seAxis2=sd(Axis.2, na.rm=TRUE)/sqrt(n()), n=n())
+PCOA_ABCD_average1982<-PCOAABCDandplots1982 %>% group_by(exp, field) %>% dplyr::summarise(meanAxis1=mean(Axis.1, na.rm=TRUE),sdAxis1=sd(Axis.1, na.rm=TRUE),seAxis1=sd(Axis.1, na.rm=TRUE)/sqrt(n()),meanAxis2=mean(Axis.2, na.rm=TRUE),sdAxis2=sd(Axis.2, na.rm=TRUE),seAxis2=sd(Axis.2, na.rm=TRUE)/sqrt(n()), n=n())
 
 
 PCOAABCDandplots1982$exp<-mapvalues(PCOAABCDandplots1982$exp, from=c("0", "1", "2"), to=c("Remnant", "Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
 
 
-
 PCOAABCDandplots1982$exp<- factor(PCOAABCDandplots1982$exp, levels = c("Remnant", "Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
 
-PCOA_ABCD_average1982$exp<- factor(PCOA_ABCD_average1982$exp, levels = c("Remnant", "Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+PCOAABCDandplots1982$field<-mapvalues(PCOAABCDandplots1982$field, from=c("A", "B", "C", "D"), to=c("A (Last farmed 1968)", "B (Last farmed 1957)", "C (Last farmed in 1934)", "D (Never farmed)"))
+
+
+###change avg too###
 
 PCOA_ABCD_average1982$exp<-mapvalues(PCOA_ABCD_average1982$exp, from=c("0", "1", "2"), to=c("Remnant", "Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
 
-PCOAABCDandplots1982$field<-mapvalues(PCOAABCDandplots1982$field, from=c("A", "B", "C", "D"), to=c("A (Last farmed 1968)", "B (Last farmed 1957)", "C (Last farmed in 1934)", "D (Never farmed)"))
+PCOA_ABCD_average1982$exp<- factor(PCOA_ABCD_average1982$exp, levels = c("Remnant", "Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
 
 
 PCOA_ABCD_average1982$field<-mapvalues(PCOA_ABCD_average1982$field, from=c("A", "B", "C", "D"), to=c("A (Last farmed 1968)", "B (Last farmed 1957)", "C (Last farmed in 1934)", "D (Never farmed)"))
@@ -1449,7 +1461,7 @@ mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3
 
 PCOA_ABCD_averageplot1982<-ggplot() +
   geom_point(data=PCOAABCDandplots1982, aes(x=Axis.1, Axis.2 , color=field, shape=as.factor(exp)), size=1.5)+
-    geom_point(data=PCOA_ABCD_average1982, aes(x=meanAxis1, y=meanAxis2 , color=field, shape=as.factor(exp)), size=3) +
+    geom_point(data=PCOA_ABCD_average1982, aes(x=meanAxis1, y=meanAxis2 , color=field, shape=as.factor(exp)), size=5) +
        geom_errorbar(data=PCOA_ABCD_average1982, aes(x= meanAxis1, ymin=meanAxis2-seAxis2, ymax=meanAxis2+seAxis2), color="gray45", size=0.25) +
   geom_errorbarh(data=PCOA_ABCD_average1982, aes(y = meanAxis2, xmin=meanAxis1-seAxis1, xmax=meanAxis1+seAxis1), color="gray45", size=0.25) +
     ylab("PCoA 2")+
@@ -2976,60 +2988,51 @@ dev.off()
 ##need to redo this...takes a long time..###
 ```{r - Indicator species analyses - 2 time periods log data }
 
-##start w/ exp12subset_2#
 
-##just the plot data##
-plot<-exp12subset_1_sorted%>% dplyr::select('field':'ntrt2')
-
-##just the veg data##
-
-veg<-exp12subset_1_sorted%>% dplyr::select(`mass.above.ACHILLEA MILLEFOLIUM(LANULOSA)`:`mass.above.VIOLA SP.`)
-
-###log transformation####
-
-vegmatrix<-as.matrix(veg)
-
-logveg<-log(1+vegmatrix)
-
-##merge back together###
-
-exp12subset_3<-data.frame(plot, logveg)
+##starting with exp12subset, raw biomass data####
 
 
-head(exp12subset_3) ##log transformed values###
+head(da_fieldD_3 ) #long form field D##
+da_fieldD_3$exp<-0
 
+head(d3woody)  ##long form fields ABC##
+
+#######
+
+d3E001E002<-d3woody %>% select(field, exp,ntrt, plot, year, species, biomass=mass.above)
+
+
+da_fieldD_3$exp=0
+da_fieldD_3$ntrt=0
+
+
+da_fieldD_3<-da_fieldD_3 %>% select(field, exp,ntrt, plot, year, species, biomass=mass.above)
+
+
+###
+dim(d3E001E002)
+dim(da_fieldD_3)
+
+####
+
+fieldABCDE001E002<-rbind(d3E001E002, da_fieldD_3)
+
+###
 
 ###subset to the controls and high N treatments###
 
-exp12subset_4<-subset(exp12subset_3,ntrt==9|ntrt==6)
+fieldABCDE001E002_subset<-subset(fieldABCDE001E002,ntrt==9|ntrt==0|ntrt==8) ###control treatment  (9) highest N 27.2 (8)
+
 
 
 # Look at first 3 years of experiment and last 3 years of experiment
-vegearly <- subset(exp12subset_4, year=="1982"|year=="1983"|year=="1984")
-veglate <- subset(exp12subset_4, year=="2000"|year=="2002"|year=="2004")
+vegearlylong <- subset(fieldABCDE001E002_subset, year=="1982"|year=="1983"|year=="1984")
+veglatelong <- subset(fieldABCDE001E002_subset, year=="2000"|year=="2002"|year=="2004")
+
 
 ##skip years 2001, 2003 bc of imcomplete data##
 
-
-#Put data in long format
-vegearlylong <-reshape(vegearly,
-                  v.names="mass",
-                 timevar="species",
-                  idvar=c("field", "exp", "plot", "year", "ntrt", "nadd", "disk"),  
-                  times=grep("mass.above", names(vegearly), value=TRUE),
-                 varying=list(grep("mass.above", names(vegearly), value=TRUE)),
-                  direction="long")
-
-vegearlylong_2<-vegearlylong %>% mutate(stage="early") %>% mutate(stage2=1)
-
-
-veglatelong <-reshape(veglate,
-                  v.names="mass",
-                 timevar="species",
-                  idvar=c("field", "exp", "plot", "year", "ntrt", "nadd", "disk"),  
-                  times=grep("mass.above", names(veglate), value=TRUE),
-                 varying=list(grep("mass.above", names(veglate), value=TRUE)),
-                  direction="long")
+vegearlylong_2<-vegearly %>% mutate(stage="early") %>% mutate(stage2=1)
 
 veglatelong_2<-veglatelong %>% mutate(stage="late")%>% mutate(stage2=3)
 
@@ -3038,19 +3041,26 @@ veglatelong_2<-veglatelong %>% mutate(stage="late")%>% mutate(stage2=3)
 veglong2<-rbind(vegearlylong_2, veglatelong_2)
 
 
-# Delete prefix from species names
-veglong2$species <- with(veglong2, gsub("mass.above.","", species))
+####this file for indicator species #####
 
-rownames(veglong2)<-NULL ##get rid of rownames##
+dim(veglong2) ##dim 6316    9
+
+
+#rownames(veglong2)<-NULL ##get rid of rownames##
+
 
 ##indicator species analysis##
 
     ##convert data back to wide form##
 
-vegwide2 <- spread(veglong2, species, mass)
+vegwide2 <- spread(veglong2, species, biomass) ##dim 648 X 161####
 
-vegwideplotdata2<-vegwide2[,1:13]
-vegwidematrix2<-vegwide2[,14:224]
+
+# Fill in NA's with zeros in wide data set
+vegwide2 [is.na(vegwide2)] <- 0
+
+vegwideplotdata2<-vegwide2[,1:7]
+vegwidematrix2<-vegwide2[,8:161]
 
 
 ###make a column for dist_nitrogen_earylate##
@@ -3059,22 +3069,30 @@ vegwideplotdata22<-vegwideplotdata2 %>% mutate(stagentrtdist= paste(stage, ntrt,
 
 vegwideplotdata22$stagentrtdist<-as.factor(vegwideplotdata22$stagentrtdist)
 
-vegwideplotdata22$stagentrtdist <- factor(vegwideplotdata22$stagentrtdist, levels = c("early_9_1", "early_6_1", "early_9_2", "early_6_2", "late_9_1", "late_6_1", "late_9_2", "late_6_2"))
+###
+levels(vegwideplotdata22$stagentrtdist)
+
+vegwideplotdata22$stagentrtdist <- factor(vegwideplotdata22$stagentrtdist, levels = c("early_0_0", "early_9_1", "early_8_1", "early_9_2", "early_8_2", "late_0_0", "late_9_1", "late_8_1", "late_9_2", "late_8_2"))
 
 vegwideplotdata33<-vegwideplotdata22 %>% mutate(stagentrtdist2= as.numeric(stagentrtdist))
 
 vegwideplotdata33$stagentrtdist2<-as.factor(vegwideplotdata33$stagentrtdist2)
 
-vegwideplotdata33$stagentrtdist2 <- factor(vegwideplotdata33$stagentrtdist2, levels = c("1", "2", "3", "4", "5", "6", "7", "8"))
+vegwideplotdata33$stagentrtdist2 <- factor(vegwideplotdata33$stagentrtdist2, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10"))
 
 ##early  late ##
 
 ##indicator spp analyses###
 
-indvalearlylate = multipatt(vegwidematrix2,vegwideplotdata33$stagentrtdist2,max.order = 3, control = how(nperm=99))## just looks at the individual groups, and twos  ##
+indvalearlylatefieldABCD = multipatt(vegwidematrix2,vegwideplotdata33$stagentrtdist2,max.order = 3, control = how(nperm=99))## just looks at the individual groups, and twos  ##
+
+indvalearlylatefieldABCD2 = multipatt(vegwidematrix2,vegwideplotdata33$stagentrtdist2,max.order = 4, control = how(nperm=999))## just looks at the individual groups, and twos and threes  ##
 
 
-indval<-data.frame(indvalearlylate[["sign"]]) ##RESULTS###
+indval<-data.frame(indvalearlylatefieldABCD2[["sign"]]) ##RESULTS###
+
+write.csv(indval, "C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/indicspp12_22_22.csv", row.names=FALSE)
+
 
 ```
 
