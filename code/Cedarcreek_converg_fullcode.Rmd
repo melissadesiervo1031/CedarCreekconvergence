@@ -3132,6 +3132,8 @@ richnessbeginning<-subset(plotdatarichnes2, year < 1985)
 
 richnessbegsummary<-richnessbeginning%>% group_by(exp) %>% dplyr::summarise(meanrichness=mean(Richness_a, na.rm=TRUE),sdrichness=sd(Richness_a, na.rm=TRUE),serichness=sd(Richness_a, na.rm=TRUE)/sqrt(n()), n=n())
 
+richnessbegsummaryboth<-richnessbeginning %>% group_by(ntrt)%>% dplyr::summarise(meanrichness=mean(Richness_a, na.rm=TRUE),sdrichness=sd(Richness_a, na.rm=TRUE),serichness=sd(Richness_a, na.rm=TRUE)/sqrt(n()), n=n())
+
 
 
 richnessfirstyear<-subset(plotdatarichnes2, year == 1982)
