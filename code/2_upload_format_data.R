@@ -35,6 +35,7 @@ library(BiodiversityR)
 source(here("code/1_functions.r"))
 
 
+
 # Reading in and cleaning Cedar Creek data###
 
 #Read in e001 data## Plot data for the unplowed fields##
@@ -143,6 +144,7 @@ sort(names(d2a))
 
 
 # Stack exp1 & 2 data
+
 da <- rbind(d1a,d2a)
 
 # Delete records with key missing data
@@ -160,71 +162,172 @@ da$subplot[is.na(da$subplot)] <- "Whole"
 da$other.add <- 1
 da$other.add[da$ntrt == 9] <- 0
 
-# Capitalize species to get rid of capilization differences in spelling
-da$species <- toupper(as.character(da$species))
+
+################################################################################
+# Here we make a clean design file of original treatments                      #
+# Make clean subplot and year level file with original treatments only.        #
+################################################################################
+
+
+names(da)
+
+# SUBPLOT SCALE Get a list of plots that have original treatments
+design.df <- ddply(da, .(field, exp, plot, subplot, ntrt, nadd, disk, other.add, ntrt.origin), colwise(mean, .(mass.above)))
+design.df$mass.above <- NULL
+dim(design.df)
+with(design.df, table(plot, field, exp))
+dim(design.df)
+
+# PLOT SCALE Get a list of plots that have original treatments
+design.df.plot <- ddply(da, .(field, exp, plot, ntrt, nadd, disk, other.add, ntrt.origin), colwise(mean, .(mass.above)))
+design.df.plot$mass.above <- NULL
+dim(design.df.plot)
+with(design.df.plot, table(plot, field, exp))
+dim(design.df.plot)
+
+
+# YEAR AND SUBPLOT SCALE Get a list of plots that have original treatments
+design.df.yr <- ddply(da, .(field, exp, plot, subplot, year, ntrt, disk, other.add, ntrt.origin, burn.origin, fence.origin), colwise(mean, .(mass.above)))
+design.df$mass.above <- NULL
+dim(design.df)
+with(design.df, table(plot, field, exp))
+dim(design.df)
+
+#### Important note: burn.origin column isn't exactly right for B E002. The burn doesn't happen until 1992, so should be 54 plots from 1982-1991 and 27 plots 1992-2004###
+
+summary(design.df.yr)
+design.orig <- design.df.yr   #dim 9086 X 12
+
+# Delete cessations plots
+design.orig <- design.orig[design.orig$ntrt.origin==1,]  #dim #7799   12#
+
+
+# Delete subplots with experimental burns (after 1992)
+#design.orig <- design.orig[design.orig$burn.origin==1,]
+design.orig<-subset(design.orig, year < 1992| year >= 1992 & burn.origin==1) #dim #6153   12#
+
+# Some field level data is not represented in both data sets
+# Get this sorted out across merged data set
+# Fences removed in 2004 (partial removal in field C but still open generally)
+# After 2004 all of E002 is unfenced
+design.orig$fence[design.orig$year <= 2004 & design.orig$exp==2] <- 1
+design.orig$fence[design.orig$year > 2004 & design.orig$exp==2] <- 0
+
+# After 2004 all of E001 is unfenced except in field C
+design.orig$fence[design.orig$year <= 2004 & design.orig$exp==1 & design.orig$field != 'C'] <- 1
+design.orig$fence[design.orig$year > 2004 & design.orig$exp==2 & design.orig$field != 'C'] <- 0
+
+# Pull out data that is fenced after 2004 as these were invidual plots 
+# fenced in field C (I think) after whole field fences were removed. 
+design.orig$sel <- TRUE
+design.orig$sel[design.orig$year > 2004 & design.orig$fence == 1] <- FALSE
+design.orig <- design.orig[design.orig$sel,]
+with(design.orig, table(year,fence, exp))
+with(design.orig, table(year, field,fence.origin, exp))
+with(design.orig, table(year, fence, field, exp))
+
+dim(design.orig)   #dim #6153   12#
+summary(design.orig)
+
+# Get field scale burn record
+df.burn <- ddply(d1a, .(field, year), colwise(max, .(burn)), na.rm=T)
+# Replace original burn record with field summary
+da$burn <- NULL
+da <- merge(da, df.burn, by=c("field", "year"), all.x=TRUE)
+
+
+# MERGE IN DESIGN.ORIG FILE TO ONLY HAVE FILES FOR WHICH TREATMENTS HAVE NOT CHANGED
+
+dim(da)  ##72737  X  19### ##includes N cessation and burned plots###
+dim(design.orig)  # Unique plot_years with correct treatments### ##dim 6396##
+
+design.orig2<-design.orig %>% select(field, year, exp, disk, plot, subplot, ntrt, other.add, ntrt.origin, burn.origin, fence.origin)
+
+da_min<-da %>% select(field, year, exp, disk, plot, subplot, ntrt,  species, mass.above) #72737  X 9### ##includes N cessation and burned plots###
+
+da_orig<-merge(design.orig2, da_min, by =c("field", "year", "exp", "disk", "plot", "subplot", "ntrt")) # ##dim 50404    13### 
+
+### da_orig is what we want to use moving foward...##
+
+##### get counts by plot year to crosscheck with excel file "Datasubset_CC Convergence###
+
+
+da_origsiteyear<-da_orig %>%  distinct(field, year, exp, disk, plot, subplot, ntrt, .keep_all = T)
+
+plotcountcheck<-da_origsiteyear%>%group_by(exp, field, year) %>%  tally()
+
+plotcountcheck2<-da_origsiteyear%>%group_by(exp, year) %>%  tally()
+
+
+plotcountcheck19822004<-subset(plotcountcheck, year < 2005)
+
+sum(plotcountcheck19822004$n) #  6102 total plots-years 1982 to 2004 #### matches exactly w/ excel file## :-) 
+
+sum(plotcountcheck$n)  ## 6396 total plot  years to be analyzed with full times series (note that this includes the E/W subplots that are compiled later...#### 
+
+
+
+################# TAXONOMIC AND OTHER SMALL DATA FIXES####################
 
 
 # Capitalize species to get rid of capilization differences in spelling
-da$species <- toupper(as.character(da$species))
+da_orig$species <- toupper(as.character(da_orig$species))
 
-# Don't include woody plants in biomass as there are some big trees in samples
-da$live <- 1
-da$sorted <- 1
-da$wood <- 0
-da$vasc <- 1
+
+###
+da_orig$live <- 1
+da_orig$sorted <- 1
+da_orig$wood <- 0
+da_orig$vasc <- 1
 
 # Do some general substitutions
 
-da$species <- gsub("APOCYNUM CANNABINUM", "APOCYNUM ANDROSAEMIFOLIUM", da$species) ## MD 11/1 based off email with Eric##
-da$species <- gsub("MISC. FORB", "MISCELLANEOUS FORB", da$species)
-da$species <- gsub("SEDGES", "CAREX SP.", da$species)
-da$species <- gsub("QUERCUS RUBRUM", "QUERCUS RUBRA", da$species)
+da_orig$species <- gsub("APOCYNUM CANNABINUM", "APOCYNUM ANDROSAEMIFOLIUM", da_orig$species) ## MD 11/1 based off email with Eric##
+da_orig$species <- gsub("MISC. FORB", "MISCELLANEOUS FORB", da_orig$species)
+da_orig$species <- gsub("SEDGES", "CAREX SP.", da_orig$species)
+da_orig$species <- gsub("QUERCUS RUBRUM", "QUERCUS RUBRA", da_orig$species)
 
 # Find litter and code as not alive
-sel<-da$species == 'MISCELLANEOUS LITTER'
-da$live[sel] <- 0
+sel<-da_orig$species == 'MISCELLANEOUS LITTER'
+da_orig$live[sel] <- 0
 
-sel<-grep("PINE", da$species)
-da$live[sel] <- 0
+sel<-grep("PINE", da_orig$species)
+da_orig$live[sel] <- 0
 
 # Code unsorted material as not being sorted
-sel<-grep("MISCELLANEOUS", da$species)
-da$sorted[sel] <- 0
+sel<-grep("MISCELLANEOUS", da_orig$species)
+da_orig$sorted[sel] <- 0
 
-sel<-grep("FUNGI", da$species)
-da$sorted[sel] <- 0
+sel<-grep("FUNGI", da_orig$species)
+da_orig$sorted[sel] <- 0
 
-sel<-grep("MOSS", da$species)
-da$sorted[sel] <- 0
+sel<-grep("MOSS", da_orig$species)
+da_orig$sorted[sel] <- 0
 
-sel<-grep("LICHEN", da$species)
-da$sorted[sel] <- 0
+sel<-grep("LICHEN", da_orig$species)
+da_orig$sorted[sel] <- 0
 
 # Woody stuff
-sel<-grep("ACER NEGUNDO", da$species)
-da$wood[sel] <- 1
-sel<-grep("CEANOTHUS", da$species)
-da$wood[sel] <- 1
-sel<-grep("CORYLUS", da$species)
-da$wood[sel] <- 1
-sel<-grep("PINUS", da$species)
-da$wood[sel] <- 1
-sel<-grep("PINE", da$species)
-da$wood[sel] <- 1
-sel<-grep("POPULUS", da$species)
-da$wood[sel] <- 1
-sel<-grep("QUERCUS", da$species)
-da$wood[sel] <- 1
-sel<-grep("ULMUS", da$species)
-da$wood[sel] <- 1
+sel<-grep("ACER NEGUNDO", da_orig$species)
+da_orig$wood[sel] <- 1
+sel<-grep("CEANOTHUS", da_orig$species)
+da_orig$wood[sel] <- 1
+sel<-grep("CORYLUS", da_orig$species)
+da_orig$wood[sel] <- 1
+sel<-grep("PINUS", da_orig$species)
+da_orig$wood[sel] <- 1
+sel<-grep("PINE", da_orig$species)
+da_orig$wood[sel] <- 1
+sel<-grep("POPULUS", da_orig$species)
+da_orig$wood[sel] <- 1
+sel<-grep("QUERCUS", da_orig$species)
+da_orig$wood[sel] <- 1
+sel<-grep("ULMUS", da_orig$species)
+da_orig$wood[sel] <- 1
 
-# Check for outlier masses
-# High values are lorge amounts of litter or trees
-da[da$mass.above > 1000 & da$live==1 & da$woo==0,c("year","field", "exp", "plot", "species", "mass.above" )]
 
-# There are a couple species with more than 1500 g of mass that
-# are very suspcious based on the species
-da <- da[da$mass.above <= 1500, ]
+##mistake w/ biomass for Asclepias syriaca##
+da_orig["mass.above"][da_orig["mass.above"] == 1711.970] <- 1711.970/10
 
 
 # Read in species attribute look up table
@@ -243,87 +346,145 @@ sp.df$pathway <- toupper(sp.df$pathway)
 sp.df$origin <- toupper(sp.df$origin)
 sp.df$family <- toupper(sp.df$family)
 
-da <- merge(da,sp.df, by='species', all.x=TRUE)
+da_full <- merge(da_orig,sp.df, by='species', all.x=TRUE)
 
 # Set Unknowns to missing
-da$origin[da$origin == 'UNKNOWN'] <- NA
-da$origin[da$origin == 'NATIVE AND/OR INTRODUCED'] <- NA
+da_full$origin[da_full$origin == 'UNKNOWN'] <- NA
+da_full$origin[da_full$origin == 'NATIVE AND/OR INTRODUCED'] <- NA
 
 
-da$functional.group[da$functional.group == 'UNKNOW'] <- NA
+da_full$functional.group[da_full$functional.group == 'UNKNOW'] <- NA
 
-da$duration[da$duration == 'UNKNOWN'] <- NA
-da$duration[da$duration == 'BIENNIAL, PERENNIAL'] <- "BIENNIAL"
+da_full$duration[da_full$duration == 'UNKNOWN'] <- NA
+da_full$duration[da_full$duration == 'BIENNIAL, PERENNIAL'] <- "BIENNIAL"
 
 # Lump biennials in with annuals as they are pretty similar
 # mostly weedy forbs 
-unique(da$species[da$duration=="BIENNIAL"])
-unique(da$species[da$duration=="BIENNIAL, PERENNIAL"])
-unique(da$species[grep('BIENNIAL', da$duration)]) 
+unique(da_full$species[da_full$duration=="BIENNIAL"])
+unique(da_full$species[da_full$duration=="BIENNIAL, PERENNIAL"])
+unique(da_full$species[grep('BIENNIAL', da_full$duration)]) 
 
-da$duration[grep('BIENNIAL', da$duration)] <- "ANNUAL"
-unique(da$species[da$duration=="ANNUAL" & da$functional.group=="C4"])
-unique(da$species[da$duration=="ANNUAL" & da$functional.group=="F"])
-
-# Add in some species atrributes
-sel <- da$species == "QUERCUS RUBRA"
-da$functional.group[sel] <- "W"
-da$lifeform[sel] <- "WOODY"
-da$origin[sel] <- "NATIVE"
+da_full$duration[grep('BIENNIAL', da_full$duration)] <- "ANNUAL"
+unique(da_full$species[da_full$duration=="ANNUAL" & da_full$functional.group=="C4"])
+unique(da_full$species[da_full$duration=="ANNUAL" & da_full$functional.group=="F"])
 
 # Add in some species atrributes
-sel <- da$species == "RUDBEKIA SEROTINA"
-da$functional.group[sel] <- "F"
-da$lifeform[sel] <- "FORB"
-da$origin[sel] <- "NATIVE"
+sel <- da_full$species == "QUERCUS RUBRA"
+da_full$functional.group[sel] <- "W"
+da_full$lifeform[sel] <- "WOODY"
+da_full$origin[sel] <- "NATIVE"
 
 # Add in some species atrributes
-sel <- da$species == "POA PRATENSIS"
-da$origin[sel] <- "INTRODUCED"
+sel <- da_full$species == "RUDBEKIA SEROTINA"
+da_full$functional.group[sel] <- "F"
+da_full$lifeform[sel] <- "FORB"
+da_full$origin[sel] <- "NATIVE"
 
-sel <- da$species == "MISCELLANEOUS CAREX SP."
-da$functional.group[sel] <- "S"
-da$lifeform[sel] <- "SEDGE"
-da$origin[sel] <- "NATIVE"
+# Add in some species atrributes
+sel <- da_full$species == "POA PRATENSIS"
+da_full$origin[sel] <- "INTRODUCED"
+
+sel <- da_full$species == "MISCELLANEOUS CAREX SP."
+da_full$functional.group[sel] <- "S"
+da_full$lifeform[sel] <- "SEDGE"
+da_full$origin[sel] <- "NATIVE"
 
 
 # Capitalize species to get rid of capilization differences in spelling
-da$species <- toupper(as.character(da$species))
+da_full$species <- toupper(as.character(da_full$species))
 
 ##deal with some entries where sp. were weighed twice##
-summary(freq <- ddply(da[da$live==1 & da$sorted==1, ], .(year, field, exp, plot, subplot, disk, ntrt, nadd, species), colwise(length, .(mass.above)))) ##takes a while##
+summary(freq <- ddply(da_full[da_full$live==1 & da_full$sorted==1, ], .(year, field, exp, plot, subplot, disk, ntrt, species), colwise(length, .(mass.above)))) ##takes a while##
 
 freq$freq <- freq$mass.above
 
 freq$mass.above <- NULL
 freq[freq$freq > 1,]
 
-doubles.df <- merge(freq[freq$freq > 1,], da[c("field", "exp","plot", "year", "species", "mass.above")], by=c("field", "exp","plot", "year", "species"))
+doubles.df <- merge(freq[freq$freq > 1,], da_full[c("field", "exp","plot", "year", "species", "mass.above")], by=c("field", "exp","plot", "year", "species"))
 doubles.df[c("field", "exp","plot", "year", "species", "mass.above")]
 
-da.mn <- ddply(da, .(field, exp, plot, subplot, year, disk, ntrt, nadd, species, live, sorted, wood, functional.group, lifeform, duration, origin), colwise(mean, .(mass.above)))
+#####
+# There are a few cases where there are multiple species weighed per sample. 
+# Options are taking max, min, mean, or sum. 
+
+#da.mn <- ddply(da_full, .(field, exp, plot, subplot, year, disk, ntrt, nadd, species, live, sorted, wood, functional.group, lifeform, duration, origin), colwise(mean, .(mass.above)))
 ##takes a while##
 
 # subset to live, sorted, herbaceous plants
-d2 <- da.mn[da.mn$sorted ==1 & da.mn$live ==1 & da.mn$wood==0, c("field", "exp","plot", "subplot", "year", "disk", "ntrt", "nadd", "species", "mass.above")]
+d2 <- da_full[da_full$sorted ==1 & da_full$live ==1 & da_full$wood==0, c("field", "exp","plot", "subplot", "year", "disk", "ntrt",  "species", "mass.above")]
+
+#subset that includes woody stuff####
+d2woody <- da_full[da_full$sorted ==1 & da_full$live ==1, c("field", "exp","plot", "subplot", "year", "disk", "ntrt", "species", "mass.above")]
 
 
-#Add some columns####
+#Add some columns for herbaceous version####
 d3<-d2 %>% mutate(expntrtfieldyear= paste(exp,field, ntrt, year, sep = '_'), expntrtyear= paste(exp,ntrt, year, sep = '_'), ntrt2=ntrt) 
 
-##This data frame (d3) has fields A, B, C, experiment 1 (intact) & exp 2 (disked in 1982) in a long data dataformat ##9 levels of nutrient addition#### years 1982 - 2019 (not every field / exp sampeled in every year## 
+#Add some columns for herbaceous + woody version ####
+d3woody<-d2woody %>% mutate(expntrtfieldyear= paste(exp,field, ntrt, year, sep = '_'), expntrtyear= paste(exp,ntrt, year, sep = '_'), ntrt2=ntrt) 
 
 
-# Transpose data to be a site by species matrix
-da.wide <- reshape(d3,
-                   v.names="mass.above",
-                   idvar=c("field", "exp","plot", "subplot", "year", "disk", "ntrt", "nadd", "expntrtyear"),
-                   timevar="species",
-                   direction="wide") 
+##These data frames (d3 or d3woody) has fields A, B, C, experiment 1 (intact) & exp 2 (disked in 1982) in a long data dataformat ##9 levels of nutrient addition#### years 1982 - 2019 (not every field / exp sampeled in every year## 
+#### Has both whole plots and suplots...###
+
+
+# Transpose herbaceous and woody data to be a site by species matrix
+da.widewoody <- reshape(d3woody,
+                        v.names="mass.above",
+                        idvar=c("field", "exp","plot", "subplot", "year", "disk", "ntrt", "expntrtyear"),
+                        timevar="species",
+                        direction="wide") 
 # Fill in NA's with zeros in wide data set
-da.wide[is.na(da.wide)] <- 0
+da.widewoody[is.na(da.widewoody)] <- 0
 
-##This data frame has fields A, B, C, experiment 1 (intact) & exp 2 (disked in 1982) ## years 1982 - 2019 for E002 and years 1982 - 2004 for exp E001 (not every field / exp sampeled in every year##
+##make nutrient and years factors#
+
+da.widewoody$ntrt<-as.factor(da.widewoody$ntrt)
+da.widewoody$year<-as.factor(da.widewoody$year)
+
+########Combine east / west subplots into "whole" to match up with rest of data (from 2015)#######
+
+##make only the biomasses the numeric variables##
+da.widewoody$exp<-as.factor(da.widewoody$exp)
+da.widewoody$disk<-as.factor(da.widewoody$disk)
+
+
+#subset out the east/ west subplots plots and the whole plots ##
+
+da.wideeastwest<-subset(da.widewoody, subplot=="East"|subplot=="West", row.names=NULL)
+da.widewhole<-subset(da.widewoody, subplot=="Whole", row.names=NULL)
+
+##Add the values from the subplots together##
+
+EWaddall<-as.data.frame(da.wideeastwest%>%group_by(field,exp,plot,year,disk,ntrt,expntrtyear, expntrtfieldyear, ntrt2) %>% summarise_if(is.numeric,sum)%>% mutate(subplot="Whole"))
+
+
+###merge the whole plots back together###
+da.wide_allwhole<-rbind(da.widewhole,EWaddall)
+
+
+
+dim(da.wide_allwhole) ## dimensions of the dataset = 6126  194##
+
+##reorder columns so that all the rows are in the same order across fields etc. 
+da.wide5<-da.wide_allwhole%>%arrange(year)%>%arrange(plot)%>%arrange(exp)%>%arrange(field) 
+
+
+##### Check that the max number of rep within a treatment is 18, since 6 plots in each field and exp recieved the same N treatment##
+
+max(ave(da.wide5$plot, da.wide5$expntrtyear,FUN = seq_along))
+
+
+####check the plotyears####
+
+
+plotcountcheck5<-da.wide5%>%group_by(exp, field, year) %>%  tally()
+
+plotcountcheck2<-da_origsiteyear%>%group_by(exp, year) %>%  tally()
+
+
+##This data frame (da.wide5) has fields A, B, C, experiment 1 (intact) & exp 2 (disked in 1982) ## years 1982 - 2019 for E002 and years 1982 - 2004 for exp E001 (not every field / exp sampeled in every year## INCLUDES WOODY PLANTS
 ###wide version format###
 
 # N Treatments (Ntrt) Details (from Table 1 Tilman 1987)
@@ -338,61 +499,113 @@ da.wide[is.na(da.wide)] <- 0
 # 8     H      27.2      All 
 # 9     I       0.0      None 
 
-##make nutrient and years factors#
+##da.wide5 = fields A, B, C, E001 and E002 1982 to 2019 w/ some missing years###
 
-da.wide$ntrt<-as.factor(da.wide$ntrt)
-da.wide$year<-as.factor(da.wide$year)
-
-########Combine east / west subplots into "whole" to match up with rest of data#######
-
-##make only the biomasses the numeric variables##
-da.wide$exp<-as.factor(da.wide$exp)
-da.wide$disk<-as.factor(da.wide$disk)
-da.wide$nadd<-as.factor(as.character(da.wide$nadd))
+###some notes about missing data##
+## E002 missing data = 2003 field A & B, 2005 all fields , 2006 all fields , 2009 A and C, 2010 all fields, 2011 A, 2012 all fields, 213 A and C, 2014 all fields, 2015 A, 2016 A, 2017 all, ####
 
 
-#subset out the east/ west subplots plots and the whole plots ##
-
-da.wideeastwest<-subset(da.wide, subplot=="East"|subplot=="West", row.names=NULL)
-da.widewhole<-subset(da.wide, subplot=="Whole", row.names=NULL)
-
-##Add the values from the subplots together##
-
-EWaddall<-as.data.frame(da.wideeastwest%>%group_by(field,exp,plot,year,disk,ntrt,nadd,expntrtyear, expntrtfieldyear, ntrt2) %>% summarise_if(is.numeric,sum)%>% mutate(subplot="Whole"))
+############ SUBSETTING FROM FULL DATASET FIELDS ABC E001 and E002########
 
 
-###merge the whole plots back together###
-da.wide_allwhole<-rbind(da.widewhole,EWaddall)
-
-
-
-dim(da.wide_allwhole) ## dimensions of the dataset = 8798 X 222##
-
-##reorder columns so that all the rows are in the same order across fields etc. 
-da.wide5<-da.wide_allwhole%>%arrange(year)%>%arrange(plot)%>%arrange(exp)%>%arrange(field) 
-
-
-##### Check that the max number of rep within a treatment is 6, since 6 plots in each field and exp recieved the same N treatment##
-
-max(ave(da.wide5$plot, da.wide5$expntrtyear,FUN = seq_along))
-
-
-
-
-
-##subset to years before 2005## (bc of change in fire regime)
+##subset to years before 2005 for BOTH E001 and E002 ## (bc of change in fire regime)
 
 da.wide5$year<-as.numeric(as.character(da.wide5$year)) 
 
 exp12subset<-subset(da.wide5,year<2005)
 
 
-##subset to selected nutrient treatments below 9.5 g N##
+#### SELECTING JUST FIELD D TO LOOK AT REMNANT VEGETATION (NEVER PLOWED)###
 
-exp12subset_1<-subset(exp12subset,ntrt==9|ntrt==1|ntrt==2|ntrt==4|ntrt==6)
+# Stack exp1 & 2 data
+da <- rbind(d1a,d2a)
 
-### this data set (exp12subset_1 has fields ABC, E001 and E002 from 1982-2004) ## > 2004 was a change in the fire regime## ONLY the control and selected nutrient treatments below 9.5 g N) ##
+# Delete records with key missing data
+da <- da[!is.na(da$mass),]
 
-###some notes about missing data##
-## E001 data set is complete from 1982 - 2004. E002 dataset is missing years 1995, 1998, 2001, 2003 ALL fields##
+# Selecting just field D###
 
+da_fieldD <- subset(da, field=="D")
+
+####
+
+# Capitalize species to get rid of capilization differences in spelling
+da_fieldD$species <- toupper(as.character(da_fieldD$species))
+
+
+# mabye we include woody for field D? not sure yet...###
+da_fieldD$live <- 1
+da_fieldD$sorted <- 1
+da_fieldD$wood <- 0
+da_fieldD$vasc <- 1
+
+# Do some general substitutions
+
+da_fieldD$species <- gsub("APOCYNUM CANNABINUM", "APOCYNUM ANDROSAEMIFOLIUM", da_fieldD$species) ## MD 11/1 based off email with Eric##
+da_fieldD$species <- gsub("MISC. FORB", "MISCELLANEOUS FORB", da_fieldD$species)
+da_fieldD$species <- gsub("SEDGES", "CAREX SP.", da_fieldD$species)
+da_fieldD$species <- gsub("QUERCUS RUBRUM", "QUERCUS RUBRA", da_fieldD$species)
+
+# Find litter and code as not alive
+sel<-da_fieldD$species == 'MISCELLANEOUS LITTER'|da_fieldD$species == 'WOODY DEBRIS'
+
+da_fieldD$live[sel] <- 0
+
+sel<-grep("PINE", da_fieldD$species)
+da_fieldD$live[sel] <- 0
+
+# Code unsorted material as not being sorted
+sel<-grep("MISCELLANEOUS", da_fieldD$species)
+da_fieldD$sorted[sel] <- 0
+
+sel<-grep("FUNGI", da_fieldD$species)
+da_fieldD$sorted[sel] <- 0
+
+sel<-grep("MOSS", da_fieldD$species)
+da_fieldD$sorted[sel] <- 0
+
+sel<-grep("LICHEN", da_fieldD$species)
+da_fieldD$sorted[sel] <- 0
+
+# Woody stuff
+sel<-grep("ACER NEGUNDO", da_fieldD$species)
+da_fieldD$wood[sel] <- 1
+sel<-grep("CEANOTHUS", da_fieldD$species)
+da_fieldD$wood[sel] <- 1
+sel<-grep("CORYLUS", da_fieldD$species)
+da_fieldD$wood[sel] <- 1
+sel<-grep("PINUS", da_fieldD$species)
+da_fieldD$wood[sel] <- 1
+sel<-grep("PINE", da_fieldD$species)
+da_fieldD$wood[sel] <- 1
+sel<-grep("POPULUS", da_fieldD$species)
+da_fieldD$wood[sel] <- 1
+sel<-grep("QUERCUS", da_fieldD$species)
+da_fieldD$wood[sel] <- 1
+sel<-grep("ULMUS", da_fieldD$species)
+da_fieldD$wood[sel] <- 1
+
+
+###remove the not live stuff...leave in trees ###
+
+da_fieldD_2<-subset(da_fieldD, live==1)
+
+
+### Without trees###
+
+# subset to live, sorted, herbaceous plants
+da_fieldD_3 <- da_fieldD[da_fieldD$sorted ==1 & da_fieldD$live ==1 & da_fieldD$wood==0, c("field", "plot", "year", "species", "mass.above")]
+
+
+######### with trees####
+
+
+# Transpose data to be a site by species matrix
+da_fieldD_wide <- reshape(da_fieldD_2,
+                          v.names="mass.above",
+                          idvar=c("field", "plot", "year"),
+                          timevar="species",
+                          direction="wide") 
+
+# Fill in NA's with zeros in wide data set
+da_fieldD_wide[is.na(da_fieldD_wide)] <- 0

@@ -1022,10 +1022,6 @@ variancetimeall_allnut<-permmaster5 %>% ggplot(aes(x=as.numeric(year2), y=R2, gr
      theme(strip.background = element_blank())
 
 
-pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/Dist recovery MS/Figures_overleaf/variancetimeall_new2.pdf", width = 7, height = 3)
-variancetimeall_allnut
-dev.off()
-
    ###
 
 ```
@@ -1147,20 +1143,6 @@ P_PcoAfieldAveragedE001E002_fullN<-ggplot(PCOAandplotsavg3_fullN[order(PCOAandpl
    geom_text(aes(x = -0.36, y = 0.23, label = abclabel, group =exp_ntrt),size = 3,check_overlap = T)
 
  
-
-pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/Dist recovery MS/Figures_overleaf/PCOA12panel_landscape.pdf", width = 9, height = 4.5)
-L_PcoAfieldAveragedE001E002_fullN
-dev.off()
-
-
-
-pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/Dist recovery MS/Figures_overleaf/PCOA12panel_portrait.pdf", width = 7, height = 9)
-P_PcoAfieldAveragedE001E002_fullN
-dev.off()
-
-    #geom_text_repel(aes(label=yearlabel),size = 2.5, color="black")
-
-
 ```
 
 
@@ -1322,11 +1304,6 @@ speciesPCOAplot <- ggplot() +
     xlab("PCoA 1")
 
 
-
-pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/Dist recovery MS/Figures_overleaf/speciesPCOA.pdf", width = 7, height = 5)
-speciesPCOAplot
-dev.off()
-
 ```
 
 
@@ -1468,18 +1445,6 @@ PCOA_ABCD_averageplot1982<-ggplot() +
     xlab("PCoA 1")+
     mytheme
 
-pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/Dist recovery MS/Figures_overleaf/PCOAfieldABCD1982.pdf", width = 7, height = 4)
-PCOA_ABCD_averageplot1982
-dev.off()
-
-
-##########
-
-
-
-######
-
-##Picking out a few years to show trajectory...##
 
 
 
@@ -2985,8 +2950,7 @@ dev.off()
 ## ADDITIONAL SUPPLEMENTAL FIGURES AND ANALYES ###
 
 
-##need to redo this...takes a long time..###
-```{r - Indicator species analyses - 2 time periods log data }
+```{r - Indicator species analyses - 2 time periods with field D log data }
 
 
 ##starting with exp12subset, raw biomass data####
@@ -3097,7 +3061,7 @@ write.csv(indval, "C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/indicspp12_22
 ```
 
 
-```{r - SUPPLEMENTAL SPP RICHNESS raw data}
+```{r - SUPPLEMENTAL SPP RICHNESS time series and by field raw data}
 
 
 ##starting with exp12subset, raw biomass data####
@@ -3124,6 +3088,14 @@ plotdatarichnes2$year<-as.numeric(as.character(plotdatarichnes2$year))
 ##average across treatments##
 
 richnessaverage<-plotdatarichnes2%>% group_by(exp, ntrt, ntrt2, year, expntrtyear) %>% dplyr::summarise(meanrichness=mean(Richness_a, na.rm=TRUE),sdrichness=sd(Richness_a, na.rm=TRUE),serichness=sd(Richness_a, na.rm=TRUE)/sqrt(n()), n=n())
+
+
+##average across fields####
+
+richnessaverageABC<-plotdatarichnes2%>% group_by(exp,field, year, ntrt, ntrt2, year, expntrtyear) %>% dplyr::summarise(meanrichness=mean(Richness_a, na.rm=TRUE),sdrichness=sd(Richness_a, na.rm=TRUE),serichness=sd(Richness_a, na.rm=TRUE)/sqrt(n()), n=n())
+
+richnessABC19822004<-subset(richnessaverageABC,year==1982|year==2004)
+richnessABC19822004<-subset(richnessaverageABC,year==1982|year==2004)
 
 
 ##richness at beginning###
@@ -3192,6 +3164,57 @@ dev.off()
 
 
 ```
+
+
+```{r - SUPPLEMENTAL SPP RICHNESS field ABCD raw data}
+
+fieldABCDE001E002<-rbind(d3E001E002, da_fieldD_3)
+
+##convert long to wide ###
+
+
+ABCDwide <- spread(fieldABCDE001E002, species, biomass) ##dim 648 X 161####
+
+
+# Fill in NA's with zeros in wide data set
+ABCDwide [is.na(ABCDwide)] <- 0
+
+##starting with BCDwide, raw biomass data####
+
+
+dim(ABCDwide) ##7566 by 256, 1-5 plot data, the rest veg data###
+
+###summarize##
+
+###Diversity metrics for plant data###
+ABCDShannonD_a <- diversity(ABCDwide[,6:256], index = "shannon") ##shannon-weiner index##
+ABCDRichness_a <- specnumber(ABCDwide[,6:256])
+ABCDEvenness_a <- ABCDShannonD_a/log(ABCDRichness_a)
+
+###combine##
+plotdatarichnessABCD<-cbind(ABCDwide[,1:5], ABCDRichness_a)
+
+#### SUBSET TO JUST 1982 and 2004, AND CONTROLS ONLY ####
+
+richnessABCD19822004<-subset(plotdatarichnessABCD, year==1982|year==2004)
+
+richnessABCD19822004controls<-subset(richnessABCD19822004, ntrt==9 | ntrt==0)
+
+
+##average across fields####
+
+richnessaverageABCD19822004<-richnessABCD19822004controls%>% group_by(exp,field, year) %>% dplyr::summarise(meanrichness=mean(ABCDRichness_a, na.rm=TRUE),sdrichness=sd(ABCDRichness_a, na.rm=TRUE),serichness=sd(ABCDRichness_a, na.rm=TRUE)/sqrt(n()), n=n())
+
+# sumarize## 
+
+ggplot(richnessaverageABCD19822004, aes(x=field, y=meanrichness))+
+  geom_bar(stat='identity')+
+  facet_grid(year~exp, scale="free", space="free") 
+
+
+```
+
+
 
 
 ```{r - SUPPLEMENTAL Biomass over time raw data}
