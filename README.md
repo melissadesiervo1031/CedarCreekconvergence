@@ -1,5 +1,7 @@
 # CedarCreekconvergence
-Code to accompany the manuscript "Nutrient supply shifts successional paths but not speed of grassland recovery from disturbance"
+Code to accompany the manuscript "Disturbance alters transience but nutrients determine equilibria during grassland succession with multiple global change drivers##
+
+submitted with DOI https://doi.org/10.5061/dryad.dbrv15f5t. "
 
 Repository organization
 
