@@ -1760,20 +1760,6 @@ disttocentroidplotBYFIELDloess<- ggplot(bd_allbyfield_2_df, aes(x=year2, y=dista
      theme(strip.background = element_blank())+
     scale_colour_manual(values = c("dark gray","#f9cb35", "#f98e09", "#e45a31", "#bc3754", "#8a226a", "#57106e", "#210c4a", "#000004"))+scale_y_continuous(breaks=c(0.1, 0.2, 0.3, 0.4))
 
-
-
-
-pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/Dist recovery MS/Figures_overleaf/distnutcentroidsfield.pdf", width = 7, height = 6)
-disttocentroidplotBYFIELD
-dev.off()
-
-
-
-pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/Dist recovery MS/Figures_overleaf/distnutcentroidsfieldloess.pdf", width = 7, height = 6)
-disttocentroidplotBYFIELDloess
-dev.off()
-
-
 ```
 
 
@@ -2051,13 +2037,6 @@ distbetweencentroidsbyfield_fullN<-ggplot(data=centroiddistsbyfield_full_2,aes(x
      theme(strip.background = element_blank())
 
 
-
-pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/Dist recovery MS/Figures_overleaf/distBTWNnutcentroidsfield.pdf", width = 6, height = 5)
-distbetweencentroidsbyfield_fullN
-dev.off()
-
-
-
 ```
 
 
@@ -2139,10 +2118,6 @@ distbetweencentroidse001e002<-ggplot(data=centroiddists_e001e002_2,aes(x=year2 ,
     theme(strip.text = element_text(size=12, face="bold"))+
      theme(strip.background = element_blank()) + scale_colour_manual(values = c("dark gray","#f9cb35", "#f98e09", "#e45a31", "#bc3754", "#8a226a", "#57106e", "#210c4a", "#000004"))+theme(plot.margin = margin(10, 10, 10, 30))
 
-
-pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/Dist recovery MS/Figures_overleaf/distbetweencentroidse001e002.pdf", width = 5, height = 3)
-distbetweencentroidse001e002
-dev.off()
 
 ```
 
@@ -2259,11 +2234,6 @@ distE001E002BYFIELD<- ggplot(mergedcentroids_dist_2, aes(x=year2, y=distcentroid
     theme(plot.margin = margin(10, 10, 10, 30))
 
 
-pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/Dist recovery MS/Figures_overleaf/distE001E002BYFIELD.pdf", width = 5, height = 3)
-distE001E002BYFIELD
-dev.off()
-
-
 ```
 
 
@@ -2348,11 +2318,6 @@ g111 <- ggplotGrob(directionalityplot)
 
 grid::grid.newpage()
 grid::grid.draw(rbind(g111, g222))
-
-pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/Dist recovery MS/Figures_overleaf/angledirectionality4panel.pdf", width = 7, height = 7)
-grid::grid.draw(rbind(g111, g222))
-dev.off()
-
 
 
 
@@ -2500,14 +2465,6 @@ trajdirplotbydecade<- ggplot(data=trajdirectavgbydecade2, aes(x=ntrt2, y=trajdir
      theme(strip.background = element_blank())+
    theme(strip.text = element_text(size=12, face="bold"))+
      theme(strip.background = element_blank())+scale_colour_manual(values = c("dark gray","#f9cb35", "#f98e09", "#e45a31", "#bc3754", "#8a226a", "#57106e", "#210c4a", "#000004"))
-
-
-
-
-
-pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/Dist recovery MS/Figures_overleaf/trajdirbydecade.pdf", width = 6, height = 6)
-trajdirplotbydecade
-dev.off()
 
 
 ```
@@ -2938,11 +2895,6 @@ avgTraj_byyearnonlinear_fullN<- ggplot(data=avgTraj_byyear_E001E002_2_fullN_2) +
 
 
 
-pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/Dist recovery MS/Figures_overleaf/trajlength.pdf", width = 6, height = 4)
-avgTraj_byyearnonlinear_fullN
-dev.off()
-
-
 ```
 
 
@@ -3158,10 +3110,6 @@ spprichnesstime<-richnessaverage %>% ggplot(aes(x=year2, y=meanrichness, group=n
    theme(strip.background = element_blank())
 
 
-pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/Dist recovery MS/Figures_overleaf/spprichnesstime.pdf", width = 6.5, height = 3)
-spprichnesstime
-dev.off()
-
 
 ```
 
@@ -3317,10 +3265,6 @@ totalmeanbiomassplot<-totalbiomassdf3subset %>% ggplot(aes(x=year2, y=totalplotb
     theme(strip.background = element_blank())+theme(strip.text.x = element_text(size = 14, colour = "black")) + scale_colour_manual(values = c("dark gray","#f98e09", "#8a226a","#000004"))+ scale_fill_manual(values = c("dark gray","#f98e09", "#8a226a","#000004"))
 
 
-pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/Dist recovery MS/Figures_overleaf/totalbiomassplot.pdf", width = 6.5, height = 3)
-totalmeanbiomassplot
-dev.off()
-
 ```
 
 
@@ -3420,10 +3364,6 @@ propfunctionalgrouptime<-sumfuntionalgroupdf3subset %>% ggplot(aes(x=year2, y=pr
     theme(strip.background = element_blank())+theme(strip.text.x = element_text(size = 14, colour = "black"))+
     scale_y_continuous(breaks=c(0.25,0.50,0.75, 1.00))
 
-
-pdf("C:/Users/Melissa/Dropbox/DRAGnet/CedarCreekdata/Dist recovery MS/Figures_overleaf/propfunctionalgrouptime.pdf", width = 6, height = 6)
-propfunctionalgrouptime
-dev.off()
 
 ```
 

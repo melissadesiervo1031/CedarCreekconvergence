@@ -1,5 +1,6 @@
 # MH DeSiervo, LG Shoemaker
-# Nutrient supply shifts successional paths but not speed of grassland recovery from disturbance
+# Disturbance alters transience but nutrients determine equilibria during grassland succession with multiple global change drivers submitted with DOI https://doi.org/10.5061/dryad.dbrv15f5t.  
+
 
 # Code to calculate trajectory distances ####
 
@@ -32,180 +33,419 @@ source(here("code/1_functions.r"))
 source(here("code/2_upload_format_data.r"))
 source(here("code/3_PCoA_Permanova.r"))
 source(here("code/4_centroids.r"))
-source(here("code/5_sinuosity.r"))
+source(here("code/5_traj_directionality.r"))
 
 
 
 #### CALCULATE TRAJ DIST BETWEEN YEARS########
 
-#https://cran.r-project.org/web/packages/ecotraj/vignettes/IntroductionETA.html#
+##https://cran.r-project.org/web/packages/ecotraj/vignettes/IntroductionETA.html##
 
-#get the PCoA points into a Euclidean distance matrix to calc. distance between points ###
+### Start with the BC dist matrix ###
 
-PCOAandplotsboth_2 <- PCOAandplotsboth %>% arrange(exp, field, ntrt,plot, year)%>%mutate(exp_field_ntrt_plot= paste(exp, field, ntrt,plot, sep = '_'), exp_field_ntrt_plot2 = as.numeric(as.factor(exp_field_ntrt_plot))) %>% dplyr::select(field, exp, plot, subplot, year, disk, ntrt, nadd, expntrtyear, expntrtfieldyear, exp_field_ntrt_plot, exp_field_ntrt_plot2, Axis.1, Axis.2)
 
-#split it by E001 and E002 since there are missing years in E002#
-PCOAandplotsE001<-subset(PCOAandplotsboth_2, exp==1) 
-PCOAandplotsE002<-subset(PCOAandplotsboth_2, exp==2) 
+##arrange the dataframe so that that columns and rows are in right order##
+exp12subsetsorted<-exp12subset%>%arrange(year)%>%arrange(plot)%>%arrange(field)%>%arrange(exp)
 
-#drop the years for E002##
-levels(PCOAandplotsE002$year)
-PCOAandplotsE002$year <- as.factor(as.character(PCOAandplotsE002$year))
 
-EucE001 = dist(PCOAandplotsE001[,13:14])
-EucE002 = dist(PCOAandplotsE002[,13:14])
+exp12subsetsorted$year<-as.numeric(as.character(exp12subsetsorted$year))
 
-#Calculate traj lengths#
-trajlengthE001<-trajectoryLengths(EucE001, PCOAandplotsE001$exp_field_ntrt_plot, PCOAandplotsE001$year)
 
-trajlengthE002<-trajectoryLengths(EucE002, PCOAandplotsE002$exp_field_ntrt_plot, PCOAandplotsE002$year)
+### subset by experiment, due to different numbers of years in E001 and E002 ####
 
-# formatting E001#
-yearnamesE001<-levels(PCOAandplotsE001$year)
-trajlengthE001_df=as.data.frame(trajlengthE001)
+##just the plot data##
+plotE001<-exp12subsetsorted%>% dplyr::select('field':'ntrt2') %>% filter(exp==1) %>% mutate(exp_field_ntrt_plot= paste(exp, field, ntrt,plot, sep = '_'))
 
-colnames(trajlengthE001_df)<-yearnamesE001
-names(trajlengthE001_df)[names(trajlengthE001_df) == '2004'] <- 'Total'
+plotE002<-exp12subsetsorted%>% dplyr::select('field':'ntrt2') %>% filter(exp==2) %>% mutate(exp_field_ntrt_plot= paste(exp, field, ntrt,plot, sep = '_'))
 
-trajlengthE001_df$names <- rownames(trajlengthE001_df)
 
-trajlengthE001_df2<-trajlengthE001_df %>%separate(names, c("exp", "field", "ntrt", "plot"), "_")
+##just the veg data##
 
-trajlengthE001_df3<-trajlengthE001_df2%>%dplyr::select(exp, field, ntrt, plot, '1982':'Total')
+vegE001<-exp12subsetsorted%>% filter(exp==1)%>% dplyr::select(`mass.above.ACER NEGUNDO`:`mass.above.VIOLA SP.`)
 
-# formatting E002#
-yearnamesE002<-levels(PCOAandplotsE002$year)
-trajlengthE002_df=as.data.frame(trajlengthE002)
-colnames(trajlengthE002_df)<-yearnamesE002
-names(trajlengthE002_df)[names(trajlengthE002_df) == '2004'] <- 'Total'
+vegE002<-exp12subsetsorted%>% filter(exp==2)%>% dplyr::select(`mass.above.ACER NEGUNDO`:`mass.above.VIOLA SP.`)
 
-trajlengthE002_df$names <- rownames(trajlengthE002_df)
 
-trajlengthE002_df2<-trajlengthE002_df %>%separate(names, c("exp", "field", "ntrt", "plot"), "_")%>%dplyr::select(exp, field, ntrt, plot, '1982':'Total')
+###log transformation####
 
-#for this df, we need to drop the columns where we don't have back to back years#
-#drop: 1994 (col 17(missing 1995), drop 2000 (missing 2001) (col 21), drop 2002 (missing 2003)(col 22), drop 2003 (missing most of 2004)(col 23)###
+vegmatrixE001<-as.matrix(vegE001)
 
-trajlengthE002_df3 <- subset(trajlengthE002_df2, select = -c(17,21:23))
+logvegE001<-log(1+vegmatrixE001)
 
-#convert wide to long#
 
-traj_longE001 <- gather(trajlengthE001_df3, startingyear, trajdist, '1982':'2003', factor_key=TRUE)
+vegmatrixE002<-as.matrix(vegE002)
 
-traj_longE002 <- gather(trajlengthE002_df3, startingyear, trajdist, '1982':'1999', factor_key=TRUE)
+logvegE002<-log(1+vegmatrixE002)
 
-#combine the two dataframes back together#
 
-traj_longboth<-rbind(traj_longE001, traj_longE002)
+## Bray curtis dissimiliarty matrix for each experiment##
 
-#this data frame (traj_long_both) contain the trajectory distance in Euclidean space for each plot between years. traj dist = the dist between starting year and the next year#
+distE001<-vegdist(logvegE001, method="bray")
+BCdistallE001<-as.matrix(distE001)  ##into a matrix#
+BCdistallE001df<-as.data.frame(BCdistallE001)  #into a dataframe#
+
+BCdistallE001df2<-cbind(plotE001,BCdistallE001df) #merge plot data w/ dissim matrix##
+
+
+distE002<-vegdist(logvegE002, method="bray")
+BCdistallE002<-as.matrix(distE002)  ##into a matrix#
+BCdistallE002df<-as.data.frame(BCdistallE002)  #into a dataframe#
+
+BCdistallE002df2<-cbind(plotE002,BCdistallE002df) #merge plot data w/ dissim matrix##
+
+
+
+
+
+####
+trajlengthE001_fullN<-trajectoryLengths(distE001, BCdistallE001df2$exp_field_ntrt_plot, BCdistallE001df2$year)
+
+trajlengthE002_fullN<-trajectoryLengths(distE002, BCdistallE002df2$exp_field_ntrt_plot, BCdistallE002df2$year)
+
+
+
+####
+levels(BCdistallE001df2$year)
+BCdistallE001df2$year <- as.factor(as.character(BCdistallE001df2$year))
+
+yearnamesE001<-levels(BCdistallE001df2$year)
+trajlengthE001_df_fullN=as.data.frame(trajlengthE001_fullN)
+
+colnames(trajlengthE001_df_fullN)<-yearnamesE001
+names(trajlengthE001_df_fullN)[names(trajlengthE001_df_fullN) == '2004'] <- 'Total'
+
+trajlengthE001_df_fullN$names <- rownames(trajlengthE001_df_fullN)
+
+trajlengthE001_df2_fullN<-trajlengthE001_df_fullN %>%separate(names, c("exp", "field", "ntrt", "plot"), "_")%>%dplyr::select(exp, field, ntrt, plot, '1982':'Total')
+
+####
+
+levels(BCdistallE002df2$year)
+BCdistallE002df2$year <- as.factor(as.character(BCdistallE002df2$year))
+
+yearnamesE002<-levels(BCdistallE002df2$year)
+
+
+trajlengthE002_df_fullN=as.data.frame(trajlengthE002_fullN)
+colnames(trajlengthE002_df_fullN)<-yearnamesE002
+names(trajlengthE002_df_fullN)[names(trajlengthE002_df_fullN) == '2004'] <- 'Total'
+
+trajlengthE002_df_fullN$names <- rownames(trajlengthE002_df_fullN)
+
+trajlengthE002_df2_fullN<-trajlengthE002_df_fullN %>%separate(names, c("exp", "field", "ntrt", "plot"), "_")%>%dplyr::select(exp, field, ntrt, plot, '1982':'Total')
+
+###for this df, we need to drop the columns where we don't have back to back years###
+##drop: 1994 (col 17(missing 1995), drop 2000 (missing 2001) (col 21), drop 2002 (missing 2003)(col 22), drop 2003 (missing most of 2004)(col 23)###
+
+trajlengthE002_df3_fullN <- subset(trajlengthE002_df2_fullN, select = -c(17,21:23))
+
+##convert wide to long##
+
+traj_longE001_fullN<- gather(trajlengthE001_df2_fullN, startingyear, trajdist, '1982':'2003', factor_key=TRUE)
+
+traj_longE002_fullN <- gather(trajlengthE002_df3_fullN, startingyear, trajdist, '1982':'1999', factor_key=TRUE)
+
+##combine the two dataframes back together##
+
+traj_longboth_fullN<-rbind(traj_longE001_fullN, traj_longE002_fullN)
+
+##this data frame (traj_long_both) contain the trajectory distance in Euclidean space for each plot between years. traj dist = the dist between starting year and the next year###
 
 
 
 ##summarize the average distance between years by treatment group##
 
-avgTraj_byyear_E001E002<-traj_longboth%>% group_by(exp,ntrt,startingyear) %>% dplyr::summarise(meantrajdist=mean(trajdist, na.rm=TRUE),sdtrajdist=sd(trajdist, na.rm=TRUE),setrajdist=sd(trajdist, na.rm=TRUE)/sqrt(n()), n=n())
+avgTraj_byyear_E001E002_fullN<-traj_longboth_fullN%>% group_by(exp,ntrt,startingyear) %>% dplyr::summarise(meantrajdist=mean(trajdist, na.rm=TRUE),sdtrajdist=sd(trajdist, na.rm=TRUE),setrajdist=sd(trajdist, na.rm=TRUE)/sqrt(n()), n=n())
 
-avgTraj_byyear_E001E002_2<- avgTraj_byyear_E001E002 %>% mutate (year2=as.numeric(as.character(startingyear))+0.5-1981)
-
-
+avgTraj_byyear_E001E002_2_fullN<- avgTraj_byyear_E001E002_fullN %>% mutate (year2=as.numeric(as.character(startingyear))+0.5-1981)
 
 
 #### AIC Table Traj Dist, Recreate Table S5 and S6####
 
-#AIC test whether a linear or nonlinear fit is better#
-#linear fit#
-
-trajdistlin<-lm(meantrajdist~year2, data=avgTraj_byyear_E001E002_2)
+###AIC test whether a linear or nonlinear fit is better##
+###linear fit###
 
 
-#nonlinear#
-
-#trajdistnonlin2 <- nls(meantrajdist ~ SSasymp(year2, Asym, R0, lrc), data=avgTraj_byyear_E001E002_2) ##not converging###
-
-trajdistnonlin2_2<- nls(meantrajdist ~ SSmicmen(year2, a, b), data=avgTraj_byyear_E001E002_2)
+trajdistlin<-lm(meantrajdist~year2, data=avgTraj_byyear_E001E002_2_fullN)
 
 
-#simple exponential decay model#
+##nonlinear asymptotic##
 
-trajdistnonlin3 <- nls(meantrajdist ~ 1 / (1 + year2^c),start = list(c = 1), data=avgTraj_byyear_E001E002_2)
+trajdistnonlin2 <- nls(meantrajdist ~ SSasymp(year2, Asym, R0, lrc), data=avgTraj_byyear_E001E002_2_fullN) ##converging###
 
-#null#
+#trajdistnonlin2_2<- nls(meantrajdist ~ SSmicmen(year2, a, b), data=avgTraj_byyear_E001E002_2)
 
-trajdistnull<-lm(meantrajdist~1, data=avgTraj_byyear_E001E002_2)
+##simple exponential decay model####
 
-rawaic<-AIC(trajdistnonlin3,trajdistnonlin2_2, trajdistlin, trajdistnull)
-nR<-dim(avgTraj_byyear_E001E002_2)[1]  #Sample size 
+#trajdistnonlin3 <- nls(meantrajdist ~ 1 / (1 + year2^c),start = list(c = 1), data=avgTraj_byyear_E001E002_2)
+
+
+###quadratic function###
+
+trajdistquad<-lm(meantrajdist~year2+I(year2^2), data=avgTraj_byyear_E001E002_2_fullN)
+
+
+##null##
+
+trajdistnull<-lm(meantrajdist~1, data=avgTraj_byyear_E001E002_2_fullN)
+
+
+rawaic<-AIC(trajdistlin, trajdistnonlin2, trajdistquad, trajdistnull)
+nR<-dim(traj_longboth_fullN)[1]  #Sample size 
 aictable(rawaic,nR)
 
-#linear model performs better than null and better than nonlinear model#
+##NONLINEAR ASYMPTOTIC MODEL performs better than null and better than nonlinear model###
 
-#linear model equations#
+####non linear model equations#####
 
-#subset by experiment##
-avgTraj_byyear_E001<-subset(avgTraj_byyear_E001E002_2, exp="Intact in 1982 (E001)")
-avgTraj_byyear_E002<-subset(avgTraj_byyear_E001E002_2, exp="Disturbed in 1982 (E002)")
+###E001 seperate by nutrient and experiment####
 
-
-modelsE001 <- dlply(avgTraj_byyear_E001, "ntrt", function(avgTraj_byyear_E001) 
-  lm(meantrajdist ~ year2, data = avgTraj_byyear_E001))
-
-# Print the summary of each model
-l_ply(modelsE001, summary, .print = TRUE)
-
-
-modelsE002 <- dlply(avgTraj_byyear_E002, "ntrt", function(avgTraj_byyear_E002) 
-  lm(meantrajdist ~ year2, data = avgTraj_byyear_E002))
-
-# Print the summary of each model
-l_ply(modelsE002, summary, .print = TRUE)
-
-#These are the values in table s5#
+controlE001<-subset(avgTraj_byyear_E001E002_2_fullN, ntrt==9 & exp==1)
+E001distntrt1<-subset(avgTraj_byyear_E001E002_2_fullN, ntrt==1 & exp==1)
+E001distntrt2<-subset(avgTraj_byyear_E001E002_2_fullN, ntrt==2 & exp==1)
+E001distntrt3<-subset(avgTraj_byyear_E001E002_2_fullN, ntrt==3 & exp==1)
+E001distntrt4<-subset(avgTraj_byyear_E001E002_2_fullN, ntrt==4 & exp==1)
+E001distntrt5<-subset(avgTraj_byyear_E001E002_2_fullN, ntrt==5 & exp==1)
+E001distntrt6<-subset(avgTraj_byyear_E001E002_2_fullN, ntrt==6 & exp==1)
+E001distntrt7<-subset(avgTraj_byyear_E001E002_2_fullN, ntrt==7 & exp==1)
+E001distntrt8<-subset(avgTraj_byyear_E001E002_2_fullN, ntrt==8 & exp==1)
 
 
+
+
+###E002 seperate by nutrient and experiment####
+
+controlE002<-subset(avgTraj_byyear_E001E002_2_fullN, ntrt==9 & exp==2)
+E002distntrt1<-subset(avgTraj_byyear_E001E002_2_fullN, ntrt==1 & exp==2)
+E002distntrt2<-subset(avgTraj_byyear_E001E002_2_fullN, ntrt==2 & exp==2)
+E002distntrt3<-subset(avgTraj_byyear_E001E002_2_fullN, ntrt==3 & exp==2)
+E002distntrt4<-subset(avgTraj_byyear_E001E002_2_fullN, ntrt==4 & exp==2)
+E002distntrt5<-subset(avgTraj_byyear_E001E002_2_fullN, ntrt==5 & exp==2)
+E002distntrt6<-subset(avgTraj_byyear_E001E002_2_fullN, ntrt==6 & exp==2)
+E002distntrt7<-subset(avgTraj_byyear_E001E002_2_fullN, ntrt==7 & exp==2)
+E002distntrt8<-subset(avgTraj_byyear_E001E002_2_fullN, ntrt==8 & exp==2)
+
+#
+#E001 #Non linear model fits##
+
+#controlE001fit<- nls(meantrajdist~ SSasymp(year2, Asym, R0, lrc), data = controlE001) # not working, singular gradient#
+E001ntrt1fit<-nls(meantrajdist~ SSasymp(year2, Asym, R0, lrc), data =E001distntrt1) 
+E001ntrt2fit<-nls(meantrajdist~ SSasymp(year2, Asym, R0, lrc), data =E001distntrt2) 
+E001ntrt3fit<-nls(meantrajdist~ SSasymp(year2, Asym, R0, lrc), data =E001distntrt3) 
+E001ntrt4fit<-nls(meantrajdist~ SSasymp(year2, Asym, R0, lrc), data =E001distntrt4) 
+E001ntrt5fit<-nls(meantrajdist~ SSasymp(year2, Asym, R0, lrc), data =E001distntrt5) 
+#E001ntrt6fit<-nls(meantrajdist~ SSasymp(year2, Asym, R0, lrc), data =E001distntrt6) ## not working, singular gradient#
+E001ntrt7fit<-nls(meantrajdist~ SSasymp(year2, Asym, R0, lrc), data =E001distntrt7) 
+E001ntrt8fit<-nls(meantrajdist~ SSasymp(year2, Asym, R0, lrc), data =E001distntrt8) 
+
+
+#E002 #Non linear model fits##
+
+controlE002fit<- nls(meantrajdist~ SSasymp(year2, Asym, R0, lrc), data = controlE002) 
+E002ntrt1fit<-nls(meantrajdist~ SSasymp(year2, Asym, R0, lrc), data =E002distntrt1) 
+E002ntrt2fit<-nls(meantrajdist~ SSasymp(year2, Asym, R0, lrc), data =E002distntrt2) 
+E002ntrt3fit<-nls(meantrajdist~ SSasymp(year2, Asym, R0, lrc), data =E002distntrt3) 
+E002ntrt4fit<-nls(meantrajdist~ SSasymp(year2, Asym, R0, lrc), data =E002distntrt4) 
+E002ntrt5fit<-nls(meantrajdist~ SSasymp(year2, Asym, R0, lrc), data =E002distntrt5) 
+E002ntrt6fit<-nls(meantrajdist~ SSasymp(year2, Asym, R0, lrc), data =E002distntrt6) 
+E002ntrt7fit<-nls(meantrajdist~ SSasymp(year2, Asym, R0, lrc), data =E002distntrt7) 
+#E002ntrt8fit<-nls(meantrajdist~ SSasymp(year2, Asym, R0, lrc), data =E002distntrt8) ### not working singular gradient ###
+
+
+### for the ones that didn't work above specify the LRC at the estimate...###
+
+x=controlE001$year2
+y=controlE001$meantrajdist
+
+summary(E001ntrt1fit)
+
+##first, specify lrc from the closest model##
+asympfunc <- function(x, Asym, R0, lrc=0.194)
+  Asym + (R0 - Asym) * exp(-exp(lrc) * x)
+
+controlE001fit<-nls(y ~ asympfunc(x, Asym, R0),
+                    data = data.frame(x, y),
+                    start = as.list(coef(E001ntrt1fit)[c(1, 2)])) ## this one works now ###
+
+###
+x=E001distntrt6$year2
+y=E001distntrt6$meantrajdist
+
+summary(E001ntrt5fit)
+
+
+##first, specify lrc from the closest model##
+asympfunc <- function(x, Asym, R0, lrc=0.00531)
+  Asym + (R0 - Asym) * exp(-exp(lrc) * x)
+
+E001ntrt6fit<-nls(y ~ asympfunc(x, Asym, R0),
+                  data = data.frame(x, y),
+                  start = as.list(coef(E001ntrt5fit)[c(1, 2)])) ## this one works now ###
+
+
+###
+x=E002distntrt8$year2
+y=E002distntrt8$meantrajdist
+
+summary(E002ntrt7fit)
+
+##first, specify lrc from the closest model##
+asympfunc <- function(x, Asym, R0, lrc=0.24417 )
+  Asym + (R0 - Asym) * exp(-exp(lrc) * x)
+
+E002ntrt8fit<-nls(y ~ asympfunc(x, Asym, R0),
+                  data = data.frame(x, y),
+                  start = as.list(coef(E002ntrt7fit)[c(1, 2)])) ## this one works now ###
+
+
+
+
+###THESE ARE ALL THE VALUES IN TABLE S5###
+
+summary(controlE001fit)
+summary(E001ntrt1fit)
+summary(E001ntrt2fit)
+summary(E001ntrt3fit)
+summary(E001ntrt4fit)
+summary(E001ntrt5fit)
+summary(E001ntrt6fit)
+summary(E001ntrt7fit)
+summary(E001ntrt8fit)
+
+
+summary(controlE002fit)
+summary(E002ntrt1fit)
+summary(E002ntrt2fit)
+summary(E002ntrt3fit)
+summary(E002ntrt4fit)
+summary(E002ntrt5fit)
+summary(E002ntrt6fit)
+summary(E002ntrt7fit)
+summary(E002ntrt8fit)
+
+
+### add the predicted values from fit to dataframes for plotting###
+
+controlE001$prednls = predict(controlE001fit)
+E001distntrt1$prednls = predict(E001ntrt1fit)
+E001distntrt2$prednls = predict(E001ntrt2fit)
+E001distntrt3$prednls = predict(E001ntrt3fit)
+E001distntrt4$prednls = predict(E001ntrt4fit)
+E001distntrt5$prednls = predict(E001ntrt5fit)
+E001distntrt6$prednls = predict(E001ntrt6fit)
+E001distntrt7$prednls = predict(E001ntrt7fit)
+E001distntrt8$prednls = predict(E001ntrt8fit)
+
+
+controlE002$prednls = predict(controlE002fit)
+E002distntrt1$prednls = predict(E002ntrt1fit)
+E002distntrt2$prednls = predict(E002ntrt2fit)
+E002distntrt3$prednls = predict(E002ntrt3fit)
+E002distntrt4$prednls = predict(E002ntrt4fit)
+E002distntrt5$prednls = predict(E002ntrt5fit)
+E002distntrt6$prednls = predict(E002ntrt6fit)
+E002distntrt7$prednls = predict(E002ntrt7fit)
+E002distntrt8$prednls = predict(E002ntrt8fit)
+
+
+avgTraj_byyear_E001E002_2_fullN_2<-rbind(controlE001, E001distntrt1,E001distntrt2,E001distntrt3,E001distntrt4,E001distntrt5,E001distntrt6,E001distntrt7,E001distntrt8, controlE002,E002distntrt1,E002distntrt2,E002distntrt3,E002distntrt4,E002distntrt5,E002distntrt6,E002distntrt7,E002distntrt8 )
+
+
+####################FIGURES #########################
 
 ### RECREATE FIG 5, Traj dist#####
+avgTraj_byyear_E001E002_2_fullN_2
 
-# plot specifications#
-
-avgTraj_byyear_E001E002$exp<-mapvalues(avgTraj_byyear_E001E002$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
-
-avgTraj_byyear_E001E002$exp<- factor(avgTraj_byyear_E001E002$exp, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+avgTraj_byyear_E001E002_2_fullN_2$ntrt2=avgTraj_byyear_E001E002_2_fullN_2$ntrt
 
 
-avgTraj_byyear_E001E002_2<- avgTraj_byyear_E001E002 %>% mutate (year2=as.numeric(as.character(startingyear))+0.5-1981)
 
-avgTraj_byyear_E001E002_2<-avgTraj_byyear_E001E002_2 %>% mutate(ntrt2=ntrt)
 
-avgTraj_byyear_E001E002_2$ntrt2  <- mapvalues(avgTraj_byyear_E001E002_2$ntrt2, from=c("9", "1", "2", "3", "4","5","6"),to=c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro"))
+###seperate the control from the others and calculate confidence intervals for plotting...###
 
-avgTraj_byyear_E001E002_2$ntrt2 <- factor(avgTraj_byyear_E001E002_2$ntrt2, levels = c("None", "0 N+micro", "1 N + micro", "2 N + micro", "3.4 N + micro","5.4 N + micro","9 N + micro"))
+# confidence intervals E001#
 
-#seperate the control from the others...#
+newdataE001 <- data.frame(
+  x= controlE001$year2
+)
 
-avgTraj_byyear_E001E002_2<-avgTraj_byyear_E001E002_2 %>% mutate(abclabel=exp)
-levels(avgTraj_byyear_E001E002_2$abclabel) <- c( "(a) ", "(b) ")
+newdataE002 <- data.frame(
+  year2= controlE002$year2
+)
 
-avgTrajcontrol<-subset(avgTraj_byyear_E001E002_2, ntrt2=="None")
 
-#plot#
-avgTraj_byyearlinear<- ggplot(data=avgTraj_byyear_E001E002_2) +
-  geom_point(data=avgTraj_byyear_E001E002_2, aes(x=as.numeric(as.character(year2)), y=meantrajdist, group=ntrt2, color=ntrt2)) +
-  geom_smooth(data=avgTraj_byyear_E001E002_2, aes(x=as.numeric(as.character(year2)), y=meantrajdist, group=ntrt2, color=ntrt2), method = "lm", formula = y ~ x , size = 1, se=FALSE)+
-  geom_point(data=avgTrajcontrol, aes(x=as.numeric(as.character(year2)), y=meantrajdist),     color="gray45") +
-  geom_smooth(data = avgTrajcontrol, aes(x=as.numeric(as.character(year2)), y=meantrajdist), method = "lm", formula = y ~ x, colour = "gray45", size = 0.25)+
+confcontrolE001<-as.data.frame(predFit(controlE001fit, newdata = newdataE001, interval = "confidence", level=0.95))
+
+confE001df<-cbind(controlE001, confcontrolE001)
+
+
+confcontrolE002<-as.data.frame(predFit(controlE002fit, newdata = newdataE002, interval = "confidence", level=0.95))
+
+confE002df<-cbind(controlE002, confcontrolE002)
+
+
+confdistboth<-rbind(confE001df, confE002df)
+
+
+
+# plot specifications
+
+avgTraj_byyear_E001E002_2_fullN_2$exp<-mapvalues(avgTraj_byyear_E001E002_2_fullN_2$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+avgTraj_byyear_E001E002_2_fullN_2$exp<- factor(avgTraj_byyear_E001E002_2_fullN_2$exp, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+
+
+avgTraj_byyear_E001E002_2_fullN_2$ntrt2  <- mapvalues(avgTraj_byyear_E001E002_2_fullN_2$ntrt2, from=c("0", "9", "1", "2", "3", "4","5","6", "7", "8"),
+                                                      to=c("Never", "None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9.5 N + μ", "17 N + μ", "27.2 N + μ"))
+
+avgTraj_byyear_E001E002_2_fullN_2$ntrt2 <- factor(avgTraj_byyear_E001E002_2_fullN_2$ntrt2, levels = c("Never", "None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9.5 N + μ", "17 N + μ", "27.2 N + μ"))
+
+
+
+
+
+avgTraj_byyear_E001E002_2_fullN_2<-avgTraj_byyear_E001E002_2_fullN_2%>% mutate(abclabel=if_else(exp=="Intact in 1982 (E001)", "(a)", "(b)"))
+
+
+confdistboth$ntrt2<-confdistboth$ntrt
+
+
+confdistboth$ntrt2 <- mapvalues(confdistboth$ntrt2, from=c("9", "1", "2", "3", "4","5","6", "7", "8"),
+                                to=c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9.5 N + μ", "17 N + μ", "27.2 N + μ"))
+
+confdistboth$ntrt2 <- factor(confdistboth$ntrt2, levels = c("None", "0 N+μ", "1 N + μ", "2 N + μ", "3.4 N + μ","5.4 N + μ","9.5 N + μ", "17 N + μ", "27.2 N + μ"))
+
+
+
+confdistboth$exp<-mapvalues(confdistboth$exp, from=c("1", "2"), to=c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+confdistboth$exp<- factor(confdistboth$exp, levels = c("Intact in 1982 (E001)", "Disturbed in 1982 (E002)"))
+
+
+
+
+
+####
+
+
+
+mytheme<- theme_bw()+ theme(axis.line.x= element_line(colour = "black", size=0.3))+theme(axis.line.y= element_line(colour = "black", size=0.3))+theme(axis.text.x=element_text(size=10, colour = "black"))+theme(axis.text.y=element_text(size=10, colour = "black"))+theme(axis.title=element_text(size=12))+theme(plot.title=element_text(size=7) +theme(plot.title = element_text(hjust = 0.5)))+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ theme(legend.title = element_blank())+theme(plot.title = element_text(margin=margin(0,0,5,0)))+ theme(panel.grid.major = element_line(colour = "gray 85"))+ theme(panel.grid.minor = element_line(colour = "gray 95"))
+
+
+
+
+
+avgTraj_byyearnonlinear_fullN<- ggplot(data=avgTraj_byyear_E001E002_2_fullN_2) +
+  geom_point(data=avgTraj_byyear_E001E002_2_fullN_2, aes(x=as.numeric(as.character(year2)), y=meantrajdist, group=ntrt2, color=ntrt2)) +geom_line(data=avgTraj_byyear_E001E002_2_fullN_2, aes(x=as.numeric(as.character(year2)), y=prednls, group=ntrt2, color=ntrt2))+
   facet_grid(~exp)+ 
+  geom_ribbon(data=confdistboth, aes(x=year2, ymin=lwr, ymax=upr,group=ntrt2, color=ntrt2), color=NA, fill = "gray1", alpha=0.2)+
   ylab(expression('Annual community trajectory distance'))+
   xlab("Time since experiment (years)")+
   mytheme+
   theme(legend.title = element_blank()) + 
-  theme(legend.position = "none") +
-  scale_colour_manual(values = c("gray45", "#E69F00", "#009E73","#0072B2","#CC79A7"))+
+  scale_colour_manual(values = c("dark gray","#f9cb35", "#f98e09", "#e45a31", "#bc3754", "#8a226a", "#57106e", "#210c4a", "#000004"))+
   theme(strip.text = element_text(size=12, face="bold"))+
   theme(strip.background = element_blank())+
-  geom_text(aes(x = 2.0, y = 0.25, label = abclabel, group =     abclabel),size = 4, color= "black", check_overlap = T)
+  geom_text(aes(x = 2.5, y = 0.65, label = abclabel, group =     abclabel),size = 4, color= "black", check_overlap = T)
 
-
-#add text and legend#
-
-avgTraj_byyear_2_linear<-avgTraj_byyearlinear+ theme(legend.position = c(0.85, 0.85))+theme(legend.text = element_text(size = 8))+ guides(color = guide_legend(override.aes = list(size = 0.5)))+theme(legend.margin = margin(0, 0, 0, 0))+theme(legend.spacing.y = unit(0, "mm"))+ theme(legend.key.size = unit(1.5, "mm"))

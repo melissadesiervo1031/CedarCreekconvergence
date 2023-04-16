@@ -1,6 +1,5 @@
 # MH DeSiervo, LG Shoemaker
-# Nutrient supply shifts successional paths but not speed of grassland recovery from disturbance
-
+### Disturbance alters transience but nutrients determine equilibria during grassland succession with multiple global change drivers ####### submitted with DOI https://doi.org/10.5061/dryad.dbrv15f5t. 
 # Code to run a PCOA on dataset and conduct permanova####
 ##Recreate Figures 1, 2, 4 (cd) in MS####
 

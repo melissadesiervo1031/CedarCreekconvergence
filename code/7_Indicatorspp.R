@@ -1,6 +1,5 @@
 # MH DeSiervo, LG Shoemaker
-# Nutrient supply shifts successional paths but not speed of grassland recovery from disturbance
-
+### Disturbance alters transience but nutrients determine equilibria during grassland succession with multiple global change drivers ######submitted with DOI https://doi.org/10.5061/dryad.dbrv15f5t. 
 # Code to run indicator spp analyses ####
 
 #Recreate Table 1#
@@ -31,101 +30,112 @@ library(BiodiversityR)
 source(here("code/1_functions.r"))
 source(here("code/2_upload_format_data.r"))
 source(here("code/3_PCoA_Permanova.r"))
-source(here("code/4_centroids.r"))
-source(here("code/5_sinuosity.r"))
-source(here("code/6_trajdist.r"))
+
 
 ### INDICATOR SPECIES ANALYSIS#####
+### 2 time periods (early late) and including field D ###
 
-#just the plot data#
+##starting with exp12subset, raw biomass data####
 
-plot<-exp12subset_1_sorted%>% dplyr::select('field':'ntrt2')
 
-#just the veg data#
+head(da_fieldD_3 ) #long form field D##
+da_fieldD_3$exp<-0
 
-veg<-exp12subset_1_sorted%>% dplyr::select(`mass.above.ACHILLEA MILLEFOLIUM(LANULOSA)`:`mass.above.VIOLA SP.`)
+head(d3woody)  ##long form fields ABC##
 
-#log transformation#
+#######
 
-vegmatrix<-as.matrix(veg)
+d3E001E002<-d3woody %>% select(field, exp,ntrt, plot, year, species, biomass=mass.above)
 
-logveg<-log(1+vegmatrix)
 
-#merge back together###
+da_fieldD_3$exp=0
+da_fieldD_3$ntrt=0
 
-exp12subset_3<-data.frame(plot, logveg)
 
-head(exp12subset_3) ##log transformed values###
+da_fieldD_3<-da_fieldD_3 %>% select(field, exp,ntrt, plot, year, species, biomass=mass.above)
 
-#subset to the controls and high N treatments#
 
-exp12subset_4<-subset(exp12subset_3,ntrt==9|ntrt==6)
+###
+dim(d3E001E002)
+dim(da_fieldD_3)
+
+####
+
+fieldABCDE001E002<-rbind(d3E001E002, da_fieldD_3)
+
+###
+
+###subset to the controls and high N treatments###
+
+fieldABCDE001E002_subset<-subset(fieldABCDE001E002,ntrt==9|ntrt==0|ntrt==8) ###control treatment  (9) highest N 27.2 (8)
+
 
 
 # Look at first 3 years of experiment and last 3 years of experiment
-vegearly <- subset(exp12subset_4, year=="1982"|year=="1983"|year=="1984")
-veglate <- subset(exp12subset_4, year=="2000"|year=="2002"|year=="2004")
-
-#skip years 2001, 2003 bc of imcomplete data#
-
-#Put data in long format
-vegearlylong <-reshape(vegearly,
-                       v.names="mass",
-                       timevar="species",
-                       idvar=c("field", "exp", "plot", "year", "ntrt", "nadd", "disk"),  
-                       times=grep("mass.above", names(vegearly), value=TRUE),
-                       varying=list(grep("mass.above", names(vegearly), value=TRUE)),
-                       direction="long")
-
-vegearlylong_2<-vegearlylong %>% mutate(stage="early") %>% mutate(stage2=1)
+vegearlylong <- subset(fieldABCDE001E002_subset, year=="1982"|year=="1983"|year=="1984")
+veglatelong <- subset(fieldABCDE001E002_subset, year=="2000"|year=="2002"|year=="2004")
 
 
-veglatelong <-reshape(veglate,
-                      v.names="mass",
-                      timevar="species",
-                      idvar=c("field", "exp", "plot", "year", "ntrt", "nadd", "disk"),  
-                      times=grep("mass.above", names(veglate), value=TRUE),
-                      varying=list(grep("mass.above", names(veglate), value=TRUE)),
-                      direction="long")
+##skip years 2001, 2003 bc of imcomplete data##
+
+vegearlylong_2<-vegearly %>% mutate(stage="early") %>% mutate(stage2=1)
 
 veglatelong_2<-veglatelong %>% mutate(stage="late")%>% mutate(stage2=3)
 
-#merge the early and late##
+#####merge the early and late##
 
 veglong2<-rbind(vegearlylong_2, veglatelong_2)
 
-# Delete prefix from species names
-veglong2$species <- with(veglong2, gsub("mass.above.","", species))
 
-rownames(veglong2)<-NULL ##get rid of rownames##
+####this file for indicator species #####
 
-#convert data back to wide form##
+dim(veglong2) ##dim 6316    9
 
-vegwide2 <- spread(veglong2, species, mass)
 
-vegwideplotdata2<-vegwide2[,1:13]
-vegwidematrix2<-vegwide2[,14:224]
+#rownames(veglong2)<-NULL ##get rid of rownames##
 
-#make a column for dist_nitrogen_earylate#
+
+##indicator species analysis##
+
+##convert data back to wide form##
+
+vegwide2 <- spread(veglong2, species, biomass) ##dim 648 X 161####
+
+
+# Fill in NA's with zeros in wide data set
+vegwide2 [is.na(vegwide2)] <- 0
+
+vegwideplotdata2<-vegwide2[,1:7]
+vegwidematrix2<-vegwide2[,8:161]
+
+
+###make a column for dist_nitrogen_earylate##
 
 vegwideplotdata22<-vegwideplotdata2 %>% mutate(stagentrtdist= paste(stage, ntrt, exp, sep = '_'))
 
 vegwideplotdata22$stagentrtdist<-as.factor(vegwideplotdata22$stagentrtdist)
 
-vegwideplotdata22$stagentrtdist <- factor(vegwideplotdata22$stagentrtdist, levels = c("early_9_1", "early_6_1", "early_9_2", "early_6_2", "late_9_1", "late_6_1", "late_9_2", "late_6_2"))
+###
+levels(vegwideplotdata22$stagentrtdist)
+
+vegwideplotdata22$stagentrtdist <- factor(vegwideplotdata22$stagentrtdist, levels = c("early_0_0", "early_9_1", "early_8_1", "early_9_2", "early_8_2", "late_0_0", "late_9_1", "late_8_1", "late_9_2", "late_8_2"))
 
 vegwideplotdata33<-vegwideplotdata22 %>% mutate(stagentrtdist2= as.numeric(stagentrtdist))
 
 vegwideplotdata33$stagentrtdist2<-as.factor(vegwideplotdata33$stagentrtdist2)
 
-vegwideplotdata33$stagentrtdist2 <- factor(vegwideplotdata33$stagentrtdist2, levels = c("1", "2", "3", "4", "5", "6", "7", "8"))
+vegwideplotdata33$stagentrtdist2 <- factor(vegwideplotdata33$stagentrtdist2, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10"))
 
-#early  late ##
+##early  late ##
 
-#indicator spp analyses#
+##indicator spp analyses###
 
-indvalearlylate = multipatt(vegwidematrix2,vegwideplotdata33$stagentrtdist2,max.order = 3, control = how(nperm=99))## just looks at the individual groups, and twos  ##
+indvalearlylatefieldABCD = multipatt(vegwidematrix2,vegwideplotdata33$stagentrtdist2,max.order = 3, control = how(nperm=99))## just looks at the individual groups, and twos  ##
+
+indvalearlylatefieldABCD2 = multipatt(vegwidematrix2,vegwideplotdata33$stagentrtdist2,max.order = 4, control = how(nperm=999))## just looks at the individual groups, and twos and threes  ##
 
 
-indval<-data.frame(indvalearlylate[["sign"]]) ##RESULTS###
+indval<-data.frame(indvalearlylatefieldABCD2[["sign"]]) ##RESULTS###
+
+indval
 
